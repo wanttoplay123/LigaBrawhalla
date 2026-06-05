@@ -3,6 +3,6 @@
 
 [[redirects]]
   from = "/api/*"
-  to = "https://TU-BACKEND.koyeb.app/api/:splat"
+  to = "https://ligabrawhalla.onrender.com/api/:splat"
   status = 200
   force = true
