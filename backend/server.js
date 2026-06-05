@@ -345,6 +345,19 @@ app.get('/api/admin/players/approved', authMiddleware, adminMiddleware, async (r
 
 app.get('/api/admin/matches/pending', authMiddleware, adminMiddleware, async (req, res) => {
   try {
+    let seasonId = null;
+    const activeSeason = await pool.query("SELECT id FROM seasons WHERE status = 'active' LIMIT 1");
+    if (activeSeason.rows.length > 0) {
+      seasonId = activeSeason.rows[0].id;
+    } else {
+      const lastSeason = await pool.query("SELECT id FROM seasons ORDER BY id DESC LIMIT 1");
+      if (lastSeason.rows.length > 0) {
+        seasonId = lastSeason.rows[0].id;
+      }
+    }
+
+    if (!seasonId) return res.json([]);
+
     const result = await pool.query(`
       SELECT m.id, m.round_id, r.round_number, m.scheduled_date, m.rescheduled,
              p1.brawlhalla_name AS player1_name, p2.brawlhalla_name AS player2_name,
@@ -356,9 +369,9 @@ app.get('/api/admin/matches/pending', authMiddleware, adminMiddleware, async (re
       JOIN players p2 ON p2.id = m.player2_id
       JOIN users u1 ON u1.id = p1.user_id
       JOIN users u2 ON u2.id = p2.user_id
-      WHERE m.status = 'pending'
+      WHERE m.status = 'pending' AND r.season_id = $1
       ORDER BY r.round_number ASC, m.id ASC
-    `);
+    `, [seasonId]);
     res.json(result.rows);
   } catch (e) {
     res.status(500).json({ error: 'Server error' });
@@ -573,7 +586,7 @@ app.post('/api/seasons/:id/end', authMiddleware, adminMiddleware, async (req, re
   try {
     const now = new Date().toISOString();
     await pool.query(`
-      UPDATE matches SET status = 'cancelled'
+      DELETE FROM matches
       WHERE status = 'pending' AND round_id IN (SELECT id FROM rounds WHERE season_id = $1)
     `, [req.params.id]);
     await pool.query(`
@@ -593,6 +606,22 @@ app.get('/api/matches', async (req, res) => {
   try {
     const statusFilter = req.query.status;
     const validStatuses = ['pending', 'completed', 'cancelled'];
+
+    let seasonId = req.query.season_id ? parseInt(req.query.season_id) : null;
+    if (!seasonId) {
+      const activeSeason = await pool.query("SELECT id FROM seasons WHERE status = 'active' LIMIT 1");
+      if (activeSeason.rows.length > 0) {
+        seasonId = activeSeason.rows[0].id;
+      } else {
+        const lastSeason = await pool.query("SELECT id FROM seasons ORDER BY id DESC LIMIT 1");
+        if (lastSeason.rows.length > 0) {
+          seasonId = lastSeason.rows[0].id;
+        }
+      }
+    }
+
+    if (!seasonId) return res.json([]);
+
     let query = `
       SELECT m.id, m.player1_id, m.player2_id, m.winner_id, m.legend1, m.legend2, m.score, m.status, m.scheduled_date, m.played_date, m.rescheduled,
              r.round_number, r.id AS round_id,
@@ -605,14 +634,17 @@ app.get('/api/matches', async (req, res) => {
       JOIN players p2 ON p2.id = m.player2_id
       JOIN users u1 ON u1.id = p1.user_id
       JOIN users u2 ON u2.id = p2.user_id
+      WHERE r.season_id = $1
     `;
 
+    const queryParams = [seasonId];
     if (statusFilter && validStatuses.includes(statusFilter)) {
-      query += ` WHERE m.status = '${statusFilter}'`;
+      query += ` AND m.status = $2`;
+      queryParams.push(statusFilter);
     }
 
     query += ' ORDER BY r.round_number ASC, m.id ASC';
-    const result = await pool.query(query);
+    const result = await pool.query(query, queryParams);
     res.json(result.rows);
   } catch (e) {
     res.status(500).json({ error: 'Server error' });
@@ -730,6 +762,19 @@ app.patch('/api/matches/:id/result', authMiddleware, adminMiddleware, async (req
 
 app.get('/api/admin/matches/completed', authMiddleware, adminMiddleware, async (req, res) => {
   try {
+    let seasonId = null;
+    const activeSeason = await pool.query("SELECT id FROM seasons WHERE status = 'active' LIMIT 1");
+    if (activeSeason.rows.length > 0) {
+      seasonId = activeSeason.rows[0].id;
+    } else {
+      const lastSeason = await pool.query("SELECT id FROM seasons ORDER BY id DESC LIMIT 1");
+      if (lastSeason.rows.length > 0) {
+        seasonId = lastSeason.rows[0].id;
+      }
+    }
+
+    if (!seasonId) return res.json([]);
+
     const result = await pool.query(`
       SELECT m.id, m.round_id, r.round_number, m.player1_id, m.player2_id, m.winner_id,
              m.legend1, m.legend2, m.score, m.status, m.played_date, m.scheduled_date, m.rescheduled,
@@ -741,9 +786,9 @@ app.get('/api/admin/matches/completed', authMiddleware, adminMiddleware, async (
       JOIN players p2 ON p2.id = m.player2_id
       JOIN users u1 ON u1.id = p1.user_id
       JOIN users u2 ON u2.id = p2.user_id
-      WHERE m.status = 'completed'
+      WHERE m.status = 'completed' AND r.season_id = $1
       ORDER BY m.played_date DESC, m.id DESC
-    `);
+    `, [seasonId]);
     res.json(result.rows);
   } catch (e) {
     res.status(500).json({ error: 'Server error' });
@@ -840,28 +885,94 @@ app.patch('/api/matches/:id/reschedule', authMiddleware, adminMiddleware, async 
 
 // ─── SEASONS HISTORY ───
 
+// Helper to compute season champion and stats accurately
+async function getSeasonChampion(seasonId) {
+  // Step 1: Get round IDs for this season
+  const roundsResult = await pool.query('SELECT id FROM rounds WHERE season_id = $1', [seasonId]);
+  const roundIds = roundsResult.rows.map(r => r.id);
+
+  // Step 2: Get all season players
+  const playersResult = await pool.query(`
+    SELECT sp.player_id, sp.initial_position, p.id, p.brawlhalla_name, p.tier, u.username
+    FROM season_players sp
+    JOIN players p ON p.id = sp.player_id
+    JOIN users u ON u.id = p.user_id
+    WHERE sp.season_id = $1
+  `, [seasonId]);
+
+  if (playersResult.rows.length === 0) return null;
+
+  if (roundIds.length === 0) {
+    const p = playersResult.rows[0];
+    return {
+      player_id: p.id,
+      brawlhalla_name: p.brawlhalla_name,
+      wins: 0,
+      losses: 0,
+      points: 0,
+      matches_played: 0
+    };
+  }
+
+  // Step 3: Get completed matches for these rounds
+  const matchesResult = await pool.query(`
+    SELECT player1_id, player2_id, winner_id
+    FROM matches
+    WHERE round_id = ANY($1) AND status = 'completed'
+  `, [roundIds]);
+
+  // Step 4: Map stats in JS
+  const statsMap = {};
+  for (const p of playersResult.rows) {
+    statsMap[p.id] = { wins: 0, losses: 0, matches_played: 0 };
+  }
+
+  for (const m of matchesResult.rows) {
+    const p1 = m.player1_id;
+    const p2 = m.player2_id;
+    if (statsMap[p1]) {
+      statsMap[p1].matches_played++;
+      if (m.winner_id === p1) statsMap[p1].wins++;
+      else if (m.winner_id !== null) statsMap[p1].losses++;
+    }
+    if (statsMap[p2]) {
+      statsMap[p2].matches_played++;
+      if (m.winner_id === p2) statsMap[p2].wins++;
+      else if (m.winner_id !== null) statsMap[p2].losses++;
+    }
+  }
+
+  // Step 5: Sort and select the champion
+  const rows = playersResult.rows.map(p => {
+    const s = statsMap[p.id] || { wins: 0, losses: 0, matches_played: 0 };
+    const points = s.wins * 3;
+    const diff = s.wins - s.losses;
+    return {
+      player_id: p.id,
+      brawlhalla_name: p.brawlhalla_name,
+      points,
+      wins: s.wins,
+      losses: s.losses,
+      matches_played: s.matches_played,
+      difference: diff,
+      initial_position: p.initial_position || 0
+    };
+  });
+
+  rows.sort((a, b) => b.points - a.points || b.difference - a.difference || b.wins - a.wins || a.initial_position - b.initial_position);
+  return rows[0];
+}
+
 app.get('/api/seasons/all', async (req, res) => {
   try {
     const seasonsResult = await pool.query('SELECT * FROM seasons ORDER BY started_at DESC');
     const seasons = seasonsResult.rows;
     if (seasons.length === 0) return res.json([]);
 
-    // For each season, find the champion with a simple query
     const enriched = [];
     for (const s of seasons) {
-      const champResult = await pool.query(`
-        SELECT p.brawlhalla_name,
-          COUNT(CASE WHEN m.winner_id = p.id THEN 1 END) AS wins
-        FROM season_players sp
-        JOIN players p ON p.id = sp.player_id
-        JOIN rounds r ON r.season_id = sp.season_id
-        LEFT JOIN matches m ON m.round_id = r.id AND (m.player1_id = p.id OR m.player2_id = p.id) AND m.status = 'completed'
-        WHERE sp.season_id = $1
-        GROUP BY p.id, p.brawlhalla_name
-        ORDER BY wins DESC
-        LIMIT 1
-      `, [s.id]);
-      s.champion_name = champResult.rows.length > 0 ? champResult.rows[0].brawlhalla_name : null;
+      const champ = await getSeasonChampion(s.id);
+      s.champion_name = champ ? champ.brawlhalla_name : null;
       enriched.push(s);
     }
     res.json(enriched);
@@ -875,45 +986,29 @@ app.get('/api/seasons/all', async (req, res) => {
 
 app.get('/api/hall-of-fame', async (req, res) => {
   try {
-    // Step 1: Get all seasons
-    const seasonsResult = await pool.query('SELECT id, name, started_at, ended_at FROM seasons ORDER BY ended_at DESC NULLS LAST');
+    // Show only completed seasons in HOF
+    const seasonsResult = await pool.query("SELECT id, name, started_at, ended_at FROM seasons WHERE status = 'completed' ORDER BY ended_at DESC NULLS LAST");
     if (seasonsResult.rows.length === 0) return res.json([]);
 
     const hofEntries = [];
 
-    // Step 2: For each season, find the champion with a simple query
     for (const s of seasonsResult.rows) {
-      const champResult = await pool.query(`
-        SELECT p.id AS player_id, p.brawlhalla_name,
-          COUNT(CASE WHEN m.status = 'completed' AND m.winner_id = p.id THEN 1 END) AS wins,
-          COUNT(CASE WHEN m.status = 'completed' AND m.winner_id IS NOT NULL AND m.winner_id != p.id THEN 1 END) AS losses,
-          COALESCE(SUM(CASE WHEN m.winner_id = p.id THEN 3 ELSE 0 END), 0) AS points,
-          COUNT(CASE WHEN m.status = 'completed' THEN 1 END) AS matches_played
-        FROM season_players sp
-        JOIN players p ON p.id = sp.player_id
-        JOIN rounds r ON r.season_id = $1
-        LEFT JOIN matches m ON m.round_id = r.id
-          AND (m.player1_id = p.id OR m.player2_id = p.id)
-        WHERE sp.season_id = $1
-        GROUP BY p.id, p.brawlhalla_name
-        ORDER BY points DESC, wins DESC
-        LIMIT 1
-      `, [s.id]);
+      const champ = await getSeasonChampion(s.id);
+      if (!champ) continue;
 
-      const champ = champResult.rows[0] || null;
-      const mp = champ ? parseInt(champ.matches_played) : 0;
-      const w = champ ? parseInt(champ.wins) : 0;
+      const mp = parseInt(champ.matches_played) || 0;
+      const w = parseInt(champ.wins) || 0;
 
       hofEntries.push({
         id: s.id,
         name: s.name,
         started_at: s.started_at,
         ended_at: s.ended_at,
-        champion_id: champ ? champ.player_id : null,
-        champion_name: champ ? champ.brawlhalla_name : null,
+        champion_id: champ.player_id,
+        champion_name: champ.brawlhalla_name,
         wins: w,
-        losses: champ ? parseInt(champ.losses) : 0,
-        points: champ ? parseInt(champ.points) : 0,
+        losses: parseInt(champ.losses) || 0,
+        points: parseInt(champ.points) || 0,
         matches_played: mp,
         winrate: mp > 0 ? Math.round((w / mp) * 10000) / 100 : 0
       });

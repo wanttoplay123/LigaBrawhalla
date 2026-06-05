@@ -272,14 +272,17 @@ async function verifyPlayer(id, action) {
 async function loadSeasonStatus() {
   const { ok, data } = await apiFetch('/seasons/active');
   const div = document.getElementById('seasonStatus');
-  if (data) {
+  const form = document.getElementById('startSeasonForm');
+  if (data && data.is_active) {
     div.innerHTML = `
       <p style="color:#22c55e;font-size:16px;">● Temporada activa: <strong>${data.name}</strong></p>
       <p style="color:rgba(255,255,255,0.4);font-size:13px;">Jornadas: ${data.completed_rounds}/${data.total_rounds}</p>
       <button class="admin-btn btn-danger" onclick="endSeason(${data.id})" style="margin-top:8px;">TERMINAR TEMPORADA</button>
     `;
+    if (form) form.style.display = 'none';
   } else {
     div.innerHTML = '<p style="color:rgba(255,255,255,0.4);font-size:14px;">No hay temporada activa</p>';
+    if (form) form.style.display = 'flex';
   }
 }
 
@@ -697,8 +700,8 @@ loadProfile();
 loadPendingMatches();
 loadActivePlayers();
 loadUsers();
-setInterval(loadPending, 15000);
-setInterval(() => { if (currentMatchTab === 'pending') loadPendingMatches(); else loadCompletedMatches(); }, 15000);
+setInterval(loadPending, 300000); // 5 minutes
+setInterval(() => { if (currentMatchTab === 'pending') loadPendingMatches(); else loadCompletedMatches(); }, 300000); // 5 minutes
 updateNav();
 </script>
 </body>

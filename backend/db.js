@@ -64,8 +64,15 @@ async function initDB() {
         played_date TEXT,
         created_at TIMESTAMPTZ DEFAULT NOW()
       );
+
+      CREATE INDEX IF NOT EXISTS idx_rounds_season_id ON rounds(season_id);
+      CREATE INDEX IF NOT EXISTS idx_season_players_season_id ON season_players(season_id);
+      CREATE INDEX IF NOT EXISTS idx_matches_round_id ON matches(round_id);
+      CREATE INDEX IF NOT EXISTS idx_matches_player1_id ON matches(player1_id);
+      CREATE INDEX IF NOT EXISTS idx_matches_player2_id ON matches(player2_id);
+      CREATE INDEX IF NOT EXISTS idx_matches_status ON matches(status);
     `);
-    console.log('PostgreSQL tables ready');
+    console.log('PostgreSQL tables ready with indexes');
   } finally {
     client.release();
   }
