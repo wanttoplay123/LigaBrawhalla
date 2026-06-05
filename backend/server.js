@@ -893,16 +893,16 @@ async function computeStandings(seasonId, res) {
     const result = await pool.query(`
       SELECT p.id, p.brawlhalla_name, p.tier, u.username,
         COALESCE(SUM(CASE WHEN m.winner_id = p.id THEN 3 ELSE 0 END), 0) AS points,
-        COALESCE(COUNT(*) FILTER (WHERE m.status = 'completed' AND m.winner_id = p.id), 0) AS wins,
-        COALESCE(COUNT(*) FILTER (WHERE m.status = 'completed' AND m.winner_id IS NOT NULL AND m.winner_id != p.id AND (m.player1_id = p.id OR m.player2_id = p.id)), 0) AS losses,
-        COALESCE(COUNT(*) FILTER (WHERE m.status = 'completed' AND (m.player1_id = p.id OR m.player2_id = p.id)), 0) AS matches_played,
-        COALESCE(COUNT(*) FILTER (WHERE m.status = 'completed' AND m.winner_id = p.id), 0) -
-        COALESCE(COUNT(*) FILTER (WHERE m.status = 'completed' AND m.winner_id IS NOT NULL AND m.winner_id != p.id AND (m.player1_id = p.id OR m.player2_id = p.id)), 0) AS difference,
+        COUNT(*) FILTER (WHERE m.status = 'completed' AND m.winner_id = p.id) AS wins,
+        COUNT(*) FILTER (WHERE m.status = 'completed' AND m.winner_id IS NOT NULL AND m.winner_id != p.id AND (m.player1_id = p.id OR m.player2_id = p.id)) AS losses,
+        COUNT(*) FILTER (WHERE m.status = 'completed' AND (m.player1_id = p.id OR m.player2_id = p.id)) AS matches_played,
+        COUNT(*) FILTER (WHERE m.status = 'completed' AND m.winner_id = p.id) -
+        COUNT(*) FILTER (WHERE m.status = 'completed' AND m.winner_id IS NOT NULL AND m.winner_id != p.id AND (m.player1_id = p.id OR m.player2_id = p.id)) AS difference,
         CASE
-          WHEN COALESCE(COUNT(*) FILTER (WHERE m.status = 'completed' AND (m.player1_id = p.id OR m.player2_id = p.id)), 0) > 0
+          WHEN COUNT(*) FILTER (WHERE m.status = 'completed' AND (m.player1_id = p.id OR m.player2_id = p.id)) > 0
           THEN ROUND(
-            CAST(COALESCE(COUNT(*) FILTER (WHERE m.status = 'completed' AND m.winner_id = p.id), 0) AS REAL) /
-            CAST(COALESCE(COUNT(*) FILTER (WHERE m.status = 'completed' AND (m.player1_id = p.id OR m.player2_id = p.id)), 0) AS REAL) * 100, 2
+            CAST(COUNT(*) FILTER (WHERE m.status = 'completed' AND m.winner_id = p.id) AS REAL) /
+            CAST(COUNT(*) FILTER (WHERE m.status = 'completed' AND (m.player1_id = p.id OR m.player2_id = p.id)) AS REAL) * 100, 2
           )
           ELSE 0
         END AS winrate,
