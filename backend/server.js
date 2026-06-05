@@ -926,7 +926,7 @@ app.get('/api/hall-of-fame', async (req, res) => {
     res.json(result.rows);
   } catch (e) {
     console.error(e);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: e.message || 'Server error' });
   }
 });
 
@@ -962,7 +962,7 @@ async function computeStandings(seasonId, res) {
     res.json(result.rows);
   } catch (e) {
     console.error(e);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: e.message || 'Server error' });
   }
 }
 
