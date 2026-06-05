@@ -1216,6 +1216,76 @@ async function propagateTournamentMatchWinner(client, matchId, winnerId) {
   }
 }
 
+async function propagateNewFormatPlayoffMatch(client, tournamentId, matchId, winnerId) {
+  const matchRes = await client.query(
+    'SELECT m.round_id, r.round_number FROM tournament_matches m JOIN tournament_rounds r ON r.id = m.round_id WHERE m.id = $1',
+    [matchId]
+  );
+  if (matchRes.rows.length === 0) return;
+  const rn = matchRes.rows[0].round_number;
+
+  if (rn === 7) {
+    const nextRes = await client.query('SELECT id FROM tournament_rounds WHERE tournament_id = $1 AND round_number = 8', [tournamentId]);
+    if (nextRes.rows.length === 0) {
+      await client.query("UPDATE tournaments SET status = 'completed' WHERE id = $1", [tournamentId]);
+    }
+    return;
+  }
+
+  const roundMatches = await client.query(
+    'SELECT id FROM tournament_matches WHERE round_id = $1 ORDER BY id ASC',
+    [matchRes.rows[0].round_id]
+  );
+  const idx = roundMatches.rows.findIndex(m => m.id === parseInt(matchId));
+  if (idx === -1) return;
+
+  let targetRoundNumber;
+  let targetMatchIdx;
+  let targetColumn;
+
+  if (rn === 4) {
+    // Play-in → Cuartos (round 5)
+    targetRoundNumber = 5;
+    const map = [
+      { mi: 0, col: 'player1_id' },
+      { mi: 1, col: 'player1_id' },
+      { mi: 1, col: 'player2_id' },
+      { mi: 0, col: 'player2_id' }
+    ];
+    targetMatchIdx = map[idx].mi;
+    targetColumn = map[idx].col;
+  } else if (rn === 5) {
+    // Cuartos → Semifinales (round 6)
+    targetRoundNumber = 6;
+    targetMatchIdx = idx;
+    targetColumn = 'player2_id';
+  } else if (rn === 6) {
+    // Semifinales → Gran Final (round 7)
+    targetRoundNumber = 7;
+    targetMatchIdx = 0;
+    targetColumn = idx === 0 ? 'player1_id' : 'player2_id';
+  } else {
+    return;
+  }
+
+  const nextRoundRes = await client.query(
+    'SELECT id FROM tournament_rounds WHERE tournament_id = $1 AND round_number = $2',
+    [tournamentId, targetRoundNumber]
+  );
+  if (nextRoundRes.rows.length === 0) return;
+
+  const nextMatches = await client.query(
+    'SELECT id FROM tournament_matches WHERE round_id = $1 ORDER BY id ASC',
+    [nextRoundRes.rows[0].id]
+  );
+  if (targetMatchIdx >= nextMatches.rows.length) return;
+
+  await client.query(
+    `UPDATE tournament_matches SET ${targetColumn} = $1 WHERE id = $2`,
+    [winnerId, nextMatches.rows[targetMatchIdx].id]
+  );
+}
+
 // ─── TOURNAMENT ENDPOINTS ───
 
 app.get('/api/tournaments', async (req, res) => {
@@ -1361,23 +1431,21 @@ app.post('/api/tournaments/:id/start', authMiddleware, adminMiddleware, async (r
       const N = approvedPlayers.rows.length;
       if (N !== 15) {
         await client.query('ROLLBACK');
-        return res.status(400).json({ error: 'The 3-group format requires exactly 15 approved players' });
+        return res.status(400).json({ error: 'This format requires exactly 15 approved players' });
       }
 
-      // Shuffle group assignments
       const shuffled = [...approvedPlayers.rows].sort(() => Math.random() - 0.5);
 
+      const groupNames = ['A','B','C','D','E'];
       for (let i = 0; i < 15; i++) {
-        const grp = i < 5 ? 'A' : (i < 10 ? 'B' : 'C');
         await client.query(
           'UPDATE tournament_players SET group_name = $1 WHERE tournament_id = $2 AND player_id = $3',
-          [grp, tournamentId, shuffled[i].player_id]
+          [groupNames[Math.floor(i / 3)], tournamentId, shuffled[i].player_id]
         );
       }
 
-      // Create group stage rounds (1 to 5)
       const rounds = [];
-      for (let r = 1; r <= 5; r++) {
+      for (let r = 1; r <= 3; r++) {
         const roundRes = await client.query(
           'INSERT INTO tournament_rounds (tournament_id, round_number, round_name, status) VALUES ($1, $2, $3, $4) RETURNING id',
           [tournamentId, r, `Grupo - Fecha ${r}`, r === 1 ? 'active' : 'pending']
@@ -1385,37 +1453,22 @@ app.post('/api/tournaments/:id/start', authMiddleware, adminMiddleware, async (r
         rounds.push(roundRes.rows[0].id);
       }
 
-      const groupAPlayers = shuffled.slice(0, 5).map(p => p.player_id);
-      const groupBPlayers = shuffled.slice(5, 10).map(p => p.player_id);
-      const groupCPlayers = shuffled.slice(10, 15).map(p => p.player_id);
+      const groupPlayers = { A: [], B: [], C: [], D: [], E: [] };
+      for (let i = 0; i < 15; i++) {
+        const g = groupNames[Math.floor(i / 3)];
+        groupPlayers[g].push(shuffled[i].player_id);
+      }
 
-      const roundsA = getRoundRobinPairs(groupAPlayers);
-      const roundsB = getRoundRobinPairs(groupBPlayers);
-      const roundsC = getRoundRobinPairs(groupCPlayers);
-
-      for (let r = 1; r <= 5; r++) {
+      for (let r = 1; r <= 3; r++) {
         const roundId = rounds[r - 1];
-        
-        // Group A matches
-        for (const pair of roundsA[r - 1] || []) {
-          await client.query(
-            "INSERT INTO tournament_matches (round_id, player1_id, player2_id, status) VALUES ($1, $2, $3, 'pending')",
-            [roundId, pair[0], pair[1]]
-          );
-        }
-        // Group B matches
-        for (const pair of roundsB[r - 1] || []) {
-          await client.query(
-            "INSERT INTO tournament_matches (round_id, player1_id, player2_id, status) VALUES ($1, $2, $3, 'pending')",
-            [roundId, pair[0], pair[1]]
-          );
-        }
-        // Group C matches
-        for (const pair of roundsC[r - 1] || []) {
-          await client.query(
-            "INSERT INTO tournament_matches (round_id, player1_id, player2_id, status) VALUES ($1, $2, $3, 'pending')",
-            [roundId, pair[0], pair[1]]
-          );
+        for (const g of groupNames) {
+          const pairs = getRoundRobinPairs(groupPlayers[g]);
+          for (const pair of pairs[r - 1] || []) {
+            await client.query(
+              "INSERT INTO tournament_matches (round_id, player1_id, player2_id, status) VALUES ($1, $2, $3, 'pending')",
+              [roundId, pair[0], pair[1]]
+            );
+          }
         }
       }
 
@@ -1567,11 +1620,25 @@ app.patch('/api/tournaments/:id/matches/:matchId/result', authMiddleware, adminM
 
     const roundRes = await client.query('SELECT round_name FROM tournament_rounds WHERE id = $1', [match.round_id]);
     const roundName = roundRes.rows[0].round_name;
+    const roundNumber = match.round_number;
 
     const isBracket = (format === 'single_elimination' || roundName.includes('Repechaje') || roundName.includes('Playoffs') || roundName.includes('Final'));
 
     if (isBracket) {
-      await propagateTournamentMatchWinner(client, req.params.matchId, winner_id);
+      if (format === 'custom_3groups' && roundName.includes('Playoffs')) {
+        const groupCount = await client.query(
+          "SELECT COUNT(DISTINCT group_name) AS cnt FROM tournament_players WHERE tournament_id = $1 AND group_name IS NOT NULL",
+          [match.tournament_id]
+        );
+        const numGroups = parseInt(groupCount.rows[0].cnt);
+        if (numGroups === 5) {
+          await propagateNewFormatPlayoffMatch(client, match.tournament_id, req.params.matchId, winner_id);
+        } else {
+          await propagateTournamentMatchWinner(client, req.params.matchId, winner_id);
+        }
+      } else {
+        await propagateTournamentMatchWinner(client, req.params.matchId, winner_id);
+      }
     }
 
     const pendingMatches = await client.query(
@@ -1584,8 +1651,8 @@ app.patch('/api/tournaments/:id/matches/:matchId/result', authMiddleware, adminM
         [match.round_id]
       );
 
-      if (format === 'single_elimination') {
-        const nextRoundNumber = match.round_number + 1;
+      if (format === 'single_elimination' || (format === 'custom_3groups' && roundName.includes('Playoffs'))) {
+        const nextRoundNumber = roundNumber + 1;
         await client.query(
           "UPDATE tournament_rounds SET status = 'active' WHERE tournament_id = $1 AND round_number = $2",
           [match.tournament_id, nextRoundNumber]
@@ -1672,11 +1739,11 @@ app.get('/api/tournaments/:id/standings', async (req, res) => {
     }
 
     const list = Object.values(stats);
-    const groups = { A: [], B: [], C: [] };
+    const groupNames = ['A','B','C','D','E'];
+    const groups = {};
+    for (const g of groupNames) groups[g] = [];
     for (const item of list) {
-      if (groups[item.group_name]) {
-        groups[item.group_name].push(item);
-      }
+      if (groups[item.group_name]) groups[item.group_name].push(item);
     }
 
     const sortFn = (a, b) => {
@@ -1689,9 +1756,7 @@ app.get('/api/tournaments/:id/standings', async (req, res) => {
       return a.seed - b.seed;
     };
 
-    groups.A.sort(sortFn);
-    groups.B.sort(sortFn);
-    groups.C.sort(sortFn);
+    for (const g of groupNames) groups[g].sort(sortFn);
 
     res.json(groups);
   } catch (e) {
@@ -1711,9 +1776,16 @@ app.post('/api/tournaments/:id/generate-repechaje', authMiddleware, adminMiddlew
       await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Tournament not found' });
     }
-    if (tournament.rows[0].format !== 'custom_3groups') {
+
+    const groupCount = await client.query(
+      "SELECT COUNT(DISTINCT group_name) AS cnt FROM tournament_players WHERE tournament_id = $1 AND group_name IS NOT NULL",
+      [tournamentId]
+    );
+    const numGroups = parseInt(groupCount.rows[0].cnt);
+
+    if (numGroups === 5) {
       await client.query('ROLLBACK');
-      return res.status(400).json({ error: 'Repechaje only available for custom_3groups format' });
+      return res.status(400).json({ error: 'New format (5 grupos de 3) does not have a repechaje phase. Use GENERAR PLAYOFFS instead.' });
     }
 
     const roundCheck = await client.query(
@@ -1756,30 +1828,21 @@ app.post('/api/tournaments/:id/generate-repechaje', authMiddleware, adminMiddlew
     const stats = {};
     for (const p of playersRes.rows) {
       stats[p.player_id] = {
-        player_id: p.player_id,
-        group_name: p.group_name,
-        seed: p.seed,
-        points: 0,
-        kos: 0,
-        damage_dealt: 0,
-        damage_taken: 0
+        player_id: p.player_id, group_name: p.group_name, seed: p.seed,
+        points: 0, kos: 0, damage_dealt: 0, damage_taken: 0
       };
     }
 
     for (const m of matchesRes.rows) {
-      const p1 = m.player1_id;
-      const p2 = m.player2_id;
-      if (stats[p1]) {
-        stats[p1].damage_dealt += (m.p1_damage || 0);
-        stats[p1].damage_taken += (m.p2_damage || 0);
-        stats[p1].kos += (m.p1_kos || 0);
-        if (m.winner_id === p1) stats[p1].points += 3;
-      }
-      if (stats[p2]) {
-        stats[p2].damage_dealt += (m.p2_damage || 0);
-        stats[p2].damage_taken += (m.p1_damage || 0);
-        stats[p2].kos += (m.p2_kos || 0);
-        if (m.winner_id === p2) stats[p2].points += 3;
+      for (const side of [
+        { pid: m.player1_id, dmg: m.p1_damage, kos: m.p1_kos, winner: m.winner_id },
+        { pid: m.player2_id, dmg: m.p2_damage, kos: m.p2_kos, winner: m.winner_id }
+      ]) {
+        if (stats[side.pid]) {
+          stats[side.pid].damage_dealt += (side.dmg || 0);
+          stats[side.pid].kos += (side.kos || 0);
+          if (side.winner === side.pid) stats[side.pid].points += 3;
+        }
       }
     }
 
@@ -1839,6 +1902,272 @@ app.post('/api/tournaments/:id/generate-repechaje', authMiddleware, adminMiddlew
   }
 });
 
+async function generatePlayoffsNewFormat(client, tournamentId) {
+  const pendingCount = await client.query(`
+    SELECT COUNT(*) FROM tournament_matches tm
+    JOIN tournament_rounds tr ON tr.id = tm.round_id
+    WHERE tr.tournament_id = $1 AND tr.round_number <= 3 AND tm.status = 'pending'
+  `, [tournamentId]);
+  if (parseInt(pendingCount.rows[0].count) > 0) {
+    throw new Error('Not all group matches are completed yet');
+  }
+
+  const playersRes = await client.query(`
+    SELECT tp.player_id, tp.group_name, tp.seed, p.brawlhalla_name, p.tier, u.username
+    FROM tournament_players tp
+    JOIN players p ON p.id = tp.player_id
+    JOIN users u ON u.id = p.user_id
+    WHERE tp.tournament_id = $1 AND tp.status = 'approved'
+  `, [tournamentId]);
+
+  const matchesRes = await client.query(`
+    SELECT tm.player1_id, tm.player2_id, tm.winner_id,
+           tm.p1_damage, tm.p2_damage, tm.p1_kos, tm.p2_kos
+    FROM tournament_matches tm
+    JOIN tournament_rounds tr ON tr.id = tm.round_id
+    WHERE tr.tournament_id = $1 AND tr.round_number <= 3 AND tm.status = 'completed'
+  `, [tournamentId]);
+
+  const stats = {};
+  for (const p of playersRes.rows) {
+    stats[p.player_id] = { player_id: p.player_id, group_name: p.group_name, seed: p.seed, points: 0, kos: 0, damage_dealt: 0, damage_taken: 0 };
+  }
+  for (const m of matchesRes.rows) {
+    for (const side of [
+      { pid: m.player1_id, opp: m.player2_id, dmg: m.p1_damage, kos: m.p1_kos, winner: m.winner_id },
+      { pid: m.player2_id, opp: m.player1_id, dmg: m.p2_damage, kos: m.p2_kos, winner: m.winner_id }
+    ]) {
+      if (stats[side.pid]) {
+        stats[side.pid].damage_dealt += (side.dmg || 0);
+        stats[side.pid].kos += (side.kos || 0);
+        if (side.winner === side.pid) stats[side.pid].points += 3;
+      }
+    }
+  }
+
+  const groups = { A: [], B: [], C: [], D: [], E: [] };
+  for (const item of Object.values(stats)) {
+    if (groups[item.group_name]) groups[item.group_name].push(item);
+  }
+
+  const sortFn = (a, b) => {
+    if (b.points !== a.points) return b.points - a.points;
+    if (b.kos !== a.kos) return b.kos - a.kos;
+    const diffB = b.damage_dealt - b.damage_taken;
+    const diffA = a.damage_dealt - a.damage_taken;
+    if (diffB !== diffA) return diffB - diffA;
+    if (b.damage_dealt !== a.damage_dealt) return b.damage_dealt - a.damage_dealt;
+    return a.seed - b.seed;
+  };
+
+  for (const g of Object.keys(groups)) groups[g].sort(sortFn);
+
+  const allQualified = [];
+  for (const g of Object.keys(groups)) {
+    allQualified.push(groups[g][0]); // 1st place
+    allQualified.push(groups[g][1]); // 2nd place
+  }
+
+  const globalSort = (a, b) => {
+    if (b.points !== a.points) return b.points - a.points;
+    if (b.kos !== a.kos) return b.kos - a.kos;
+    const diffB = b.damage_dealt - b.damage_taken;
+    const diffA = a.damage_dealt - a.damage_taken;
+    if (diffB !== diffA) return diffB - diffA;
+    return a.seed - b.seed;
+  };
+  allQualified.sort(globalSort);
+
+  const seeded = allQualified.map(p => p.player_id);
+
+  const r4 = await client.query(
+    "INSERT INTO tournament_rounds (tournament_id, round_number, round_name, status) VALUES ($1, 4, 'Playoffs - Ronda 1 (Play-in)', 'active') RETURNING id",
+    [tournamentId]
+  );
+  const r5 = await client.query(
+    "INSERT INTO tournament_rounds (tournament_id, round_number, round_name, status) VALUES ($1, 5, 'Playoffs - Cuartos de Final', 'pending') RETURNING id",
+    [tournamentId]
+  );
+  const r6 = await client.query(
+    "INSERT INTO tournament_rounds (tournament_id, round_number, round_name, status) VALUES ($1, 6, 'Playoffs - Semifinales', 'pending') RETURNING id",
+    [tournamentId]
+  );
+  const r7 = await client.query(
+    "INSERT INTO tournament_rounds (tournament_id, round_number, round_name, status) VALUES ($1, 7, 'Playoffs - Gran Final', 'pending') RETURNING id",
+    [tournamentId]
+  );
+
+  const r4Id = r4.rows[0].id;
+  const r5Id = r5.rows[0].id;
+  const r6Id = r6.rows[0].id;
+  const r7Id = r7.rows[0].id;
+
+  // Play-in (round 4): #3 vs #10, #4 vs #9, #5 vs #8, #6 vs #7
+  // Indices: 0, 1, 2, 3
+  const playInMatches = [];
+  for (let i = 3; i <= 6; i++) {
+    const res = await client.query(
+      "INSERT INTO tournament_matches (round_id, player1_id, player2_id, status) VALUES ($1, $2, $3, 'pending') RETURNING id",
+      [r4Id, seeded[i - 1], seeded[10 - i + 1]] // #3 vs #10, #4 vs #9, #5 vs #8, #6 vs #7
+    );
+    playInMatches.push(res.rows[0]);
+  }
+
+  // Cuartos (round 5): 2 matches (TBD, filled by play-in winners via propagation)
+  const qfMatches = [];
+  for (let i = 0; i < 2; i++) {
+    const res = await client.query(
+      "INSERT INTO tournament_matches (round_id, player1_id, player2_id, status) VALUES ($1, NULL, NULL, 'pending') RETURNING id",
+      [r5Id]
+    );
+    qfMatches.push(res.rows[0].id);
+  }
+
+  // Semifinales (round 6): 2 matches (#1 and #2 pre-filled)
+  const sf1 = await client.query(
+    "INSERT INTO tournament_matches (round_id, player1_id, player2_id, status) VALUES ($1, $2, NULL, 'pending') RETURNING id",
+    [r6Id, seeded[0]]
+  );
+  const sf2 = await client.query(
+    "INSERT INTO tournament_matches (round_id, player1_id, player2_id, status) VALUES ($1, $2, NULL, 'pending') RETURNING id",
+    [r6Id, seeded[1]]
+  );
+
+  // Gran Final (round 7): 1 match (TBD)
+  await client.query(
+    "INSERT INTO tournament_matches (round_id, player1_id, player2_id, status) VALUES ($1, NULL, NULL, 'pending')",
+    [r7Id]
+  );
+}
+
+async function generatePlayoffsOldFormat(client, tournamentId) {
+  const playersRes = await client.query(`
+    SELECT tp.player_id, tp.group_name, tp.seed, p.brawlhalla_name, p.tier, u.username
+    FROM tournament_players tp
+    JOIN players p ON p.id = tp.player_id
+    JOIN users u ON u.id = p.user_id
+    WHERE tp.tournament_id = $1 AND tp.status = 'approved'
+  `, [tournamentId]);
+
+  const matchesRes = await client.query(`
+    SELECT tm.player1_id, tm.player2_id, tm.winner_id,
+           tm.p1_damage, tm.p2_damage, tm.p1_kos, tm.p2_kos
+    FROM tournament_matches tm
+    JOIN tournament_rounds tr ON tr.id = tm.round_id
+    WHERE tr.tournament_id = $1 AND tr.round_number <= 5 AND tr.round_name LIKE 'Grupo%' AND tm.status = 'completed'
+  `, [tournamentId]);
+
+  const stats = {};
+  for (const p of playersRes.rows) {
+    stats[p.player_id] = { player_id: p.player_id, group_name: p.group_name, seed: p.seed, points: 0, kos: 0, damage_dealt: 0, damage_taken: 0 };
+  }
+  for (const m of matchesRes.rows) {
+    for (const side of [
+      { pid: m.player1_id, opp: m.player2_id, dmg: m.p1_damage, kos: m.p1_kos, winner: m.winner_id },
+      { pid: m.player2_id, opp: m.player1_id, dmg: m.p2_damage, kos: m.p2_kos, winner: m.winner_id }
+    ]) {
+      if (stats[side.pid]) {
+        stats[side.pid].damage_dealt += (side.dmg || 0);
+        stats[side.pid].kos += (side.kos || 0);
+        if (side.winner === side.pid) stats[side.pid].points += 3;
+      }
+    }
+  }
+
+  const groups = { A: [], B: [], C: [] };
+  for (const item of Object.values(stats)) {
+    if (groups[item.group_name]) groups[item.group_name].push(item);
+  }
+
+  const sortFn = (a, b) => {
+    if (b.points !== a.points) return b.points - a.points;
+    if (b.kos !== a.kos) return b.kos - a.kos;
+    const diffB = b.damage_dealt - b.damage_taken;
+    const diffA = a.damage_dealt - a.damage_taken;
+    if (diffB !== diffA) return diffB - diffA;
+    if (b.damage_dealt !== a.damage_dealt) return b.damage_dealt - a.damage_dealt;
+    return a.seed - b.seed;
+  };
+
+  groups.A.sort(sortFn);
+  groups.B.sort(sortFn);
+  groups.C.sort(sortFn);
+
+  const a5 = groups.A[4].player_id;
+  const b5 = groups.B[4].player_id;
+  const c5 = groups.C[4].player_id;
+
+  const repechajeRoundRes = await client.query(
+    "SELECT id, status FROM tournament_rounds WHERE tournament_id = $1 AND round_name = 'Repechaje'",
+    [tournamentId]
+  );
+  if (repechajeRoundRes.rows.length === 0 || repechajeRoundRes.rows[0].status !== 'completed') {
+    throw new Error('Repechaje must be completed before generating playoffs');
+  }
+
+  const repMatchesRes = await client.query(
+    "SELECT id, player1_id, player2_id, winner_id FROM tournament_matches WHERE round_id = $1",
+    [repechajeRoundRes.rows[0].id]
+  );
+  const losers = repMatchesRes.rows.map(m => {
+    return m.winner_id === m.player1_id ? m.player2_id : m.player1_id;
+  });
+
+  const r7 = await client.query(
+    "INSERT INTO tournament_rounds (tournament_id, round_number, round_name, status) VALUES ($1, 7, 'Playoffs - Cuartos de Final', 'active') RETURNING id",
+    [tournamentId]
+  );
+  const r8 = await client.query(
+    "INSERT INTO tournament_rounds (tournament_id, round_number, round_name, status) VALUES ($1, 8, 'Playoffs - Semifinales', 'pending') RETURNING id",
+    [tournamentId]
+  );
+  const r9 = await client.query(
+    "INSERT INTO tournament_rounds (tournament_id, round_number, round_name, status) VALUES ($1, 9, 'Playoffs - Gran Final', 'pending') RETURNING id",
+    [tournamentId]
+  );
+
+  const r7Id = r7.rows[0].id;
+  const r8Id = r8.rows[0].id;
+  const r9Id = r9.rows[0].id;
+
+  const semi1 = await client.query(
+    "INSERT INTO tournament_matches (round_id, player1_id, player2_id, status) VALUES ($1, NULL, NULL, 'pending') RETURNING id",
+    [r8Id]
+  );
+  const semi2 = await client.query(
+    "INSERT INTO tournament_matches (round_id, player1_id, player2_id, status) VALUES ($1, NULL, NULL, 'pending') RETURNING id",
+    [r8Id]
+  );
+  await client.query(
+    "INSERT INTO tournament_matches (round_id, player1_id, player2_id, status) VALUES ($1, NULL, NULL, 'pending')",
+    [r9Id]
+  );
+
+  const pad = n => n.toString().padStart(2, '0');
+  const nd = new Date();
+  const playedDateStr = `${nd.getFullYear()}-${pad(nd.getMonth()+1)}-${pad(nd.getDate())} ${pad(nd.getHours())}:${pad(nd.getMinutes())}`;
+
+  const m1 = await client.query(
+    "INSERT INTO tournament_matches (round_id, player1_id, player2_id, status) VALUES ($1, $2, $3, 'pending') RETURNING id",
+    [r7Id, losers[0], a5]
+  );
+  const m2 = await client.query(
+    "INSERT INTO tournament_matches (round_id, player1_id, player2_id, status) VALUES ($1, $2, $3, 'pending') RETURNING id",
+    [r7Id, losers[1], b5]
+  );
+  const m3 = await client.query(
+    "INSERT INTO tournament_matches (round_id, player1_id, player2_id, winner_id, status, score, played_date) VALUES ($1, $2, NULL, $2, 'completed', 'W.O.', $3) RETURNING id",
+    [r7Id, losers[2], playedDateStr]
+  );
+  const m4 = await client.query(
+    "INSERT INTO tournament_matches (round_id, player1_id, player2_id, winner_id, status, score, played_date) VALUES ($1, $2, NULL, $2, 'completed', 'W.O.', $3) RETURNING id",
+    [r7Id, c5, playedDateStr]
+  );
+
+  await propagateTournamentMatchWinner(client, m3.rows[0].id, losers[2]);
+  await propagateTournamentMatchWinner(client, m4.rows[0].id, c5);
+}
+
 app.post('/api/tournaments/:id/generate-playoffs', authMiddleware, adminMiddleware, async (req, res) => {
   const client = await pool.connect();
   try {
@@ -1864,161 +2193,25 @@ app.post('/api/tournaments/:id/generate-playoffs', authMiddleware, adminMiddlewa
       return res.status(400).json({ error: 'Playoffs already generated' });
     }
 
-    const repechajeRoundRes = await client.query(
-      "SELECT id, status FROM tournament_rounds WHERE tournament_id = $1 AND round_name = 'Repechaje'",
+    // Detect if this is old format (3 groups) or new format (5 groups)
+    const groupCount = await client.query(
+      "SELECT COUNT(DISTINCT group_name) AS cnt FROM tournament_players WHERE tournament_id = $1 AND group_name IS NOT NULL",
       [tournamentId]
     );
-    if (repechajeRoundRes.rows.length === 0) {
-      await client.query('ROLLBACK');
-      return res.status(400).json({ error: 'Repechaje has not been generated yet' });
+    const numGroups = parseInt(groupCount.rows[0].cnt);
+
+    if (numGroups === 5) {
+      await generatePlayoffsNewFormat(client, tournamentId);
+    } else {
+      await generatePlayoffsOldFormat(client, tournamentId);
     }
-    if (repechajeRoundRes.rows[0].status !== 'completed') {
-      await client.query('ROLLBACK');
-      return res.status(400).json({ error: 'Repechaje matches are not completed yet' });
-    }
-
-    const repMatchesRes = await client.query(
-      "SELECT id, player1_id, player2_id, winner_id FROM tournament_matches WHERE round_id = $1",
-      [repechajeRoundRes.rows[0].id]
-    );
-    if (repMatchesRes.rows.length < 3) {
-      await client.query('ROLLBACK');
-      return res.status(400).json({ error: 'Repechaje match data is incomplete' });
-    }
-
-    const losers = repMatchesRes.rows.map(m => {
-      return m.winner_id === m.player1_id ? m.player2_id : m.player1_id;
-    });
-
-    const playersRes = await client.query(`
-      SELECT tp.player_id, tp.group_name, tp.seed, p.brawlhalla_name, p.tier, u.username
-      FROM tournament_players tp
-      JOIN players p ON p.id = tp.player_id
-      JOIN users u ON u.id = p.user_id
-      WHERE tp.tournament_id = $1 AND tp.status = 'approved'
-    `, [tournamentId]);
-
-    const matchesRes = await client.query(`
-      SELECT tm.player1_id, tm.player2_id, tm.winner_id,
-             tm.p1_damage, tm.p2_damage, tm.p1_kos, tm.p2_kos
-      FROM tournament_matches tm
-      JOIN tournament_rounds tr ON tr.id = tm.round_id
-      WHERE tr.tournament_id = $1 AND tr.round_number <= 5 AND tr.round_name LIKE 'Grupo%' AND tm.status = 'completed'
-    `, [tournamentId]);
-
-    const stats = {};
-    for (const p of playersRes.rows) {
-      stats[p.player_id] = {
-        player_id: p.player_id,
-        group_name: p.group_name,
-        seed: p.seed,
-        points: 0,
-        kos: 0,
-        damage_dealt: 0,
-        damage_taken: 0
-      };
-    }
-
-    for (const m of matchesRes.rows) {
-      const p1 = m.player1_id;
-      const p2 = m.player2_id;
-      if (stats[p1]) {
-        stats[p1].damage_dealt += (m.p1_damage || 0);
-        stats[p1].damage_taken += (m.p2_damage || 0);
-        stats[p1].kos += (m.p1_kos || 0);
-        if (m.winner_id === p1) stats[p1].points += 3;
-      }
-      if (stats[p2]) {
-        stats[p2].damage_dealt += (m.p2_damage || 0);
-        stats[p2].damage_taken += (m.p1_damage || 0);
-        stats[p2].kos += (m.p2_kos || 0);
-        if (m.winner_id === p2) stats[p2].points += 3;
-      }
-    }
-
-    const groups = { A: [], B: [], C: [] };
-    for (const item of Object.values(stats)) {
-      if (groups[item.group_name]) groups[item.group_name].push(item);
-    }
-
-    const sortFn = (a, b) => {
-      if (b.points !== a.points) return b.points - a.points;
-      if (b.kos !== a.kos) return b.kos - a.kos;
-      const diffB = b.damage_dealt - b.damage_taken;
-      const diffA = a.damage_dealt - a.damage_taken;
-      if (diffB !== diffA) return diffB - diffA;
-      if (b.damage_dealt !== a.damage_dealt) return b.damage_dealt - a.damage_dealt;
-      return a.seed - b.seed;
-    };
-
-    groups.A.sort(sortFn);
-    groups.B.sort(sortFn);
-    groups.C.sort(sortFn);
-
-    const a5 = groups.A[4].player_id;
-    const b5 = groups.B[4].player_id;
-    const c5 = groups.C[4].player_id;
-
-    const r7 = await client.query(
-      "INSERT INTO tournament_rounds (tournament_id, round_number, round_name, status) VALUES ($1, 7, 'Playoffs - Cuartos de Final', 'active') RETURNING id",
-      [tournamentId]
-    );
-    const r8 = await client.query(
-      "INSERT INTO tournament_rounds (tournament_id, round_number, round_name, status) VALUES ($1, 8, 'Playoffs - Semifinales', 'pending') RETURNING id",
-      [tournamentId]
-    );
-    const r9 = await client.query(
-      "INSERT INTO tournament_rounds (tournament_id, round_number, round_name, status) VALUES ($1, 9, 'Playoffs - Gran Final', 'pending') RETURNING id",
-      [tournamentId]
-    );
-
-    const r7Id = r7.rows[0].id;
-    const r8Id = r8.rows[0].id;
-    const r9Id = r9.rows[0].id;
-
-    const semi1 = await client.query(
-      "INSERT INTO tournament_matches (round_id, player1_id, player2_id, status) VALUES ($1, NULL, NULL, 'pending') RETURNING id",
-      [r8Id]
-    );
-    const semi2 = await client.query(
-      "INSERT INTO tournament_matches (round_id, player1_id, player2_id, status) VALUES ($1, NULL, NULL, 'pending') RETURNING id",
-      [r8Id]
-    );
-    await client.query(
-      "INSERT INTO tournament_matches (round_id, player1_id, player2_id, status) VALUES ($1, NULL, NULL, 'pending')",
-      [r9Id]
-    );
-
-    const pad = n => n.toString().padStart(2, '0');
-    const nd = new Date();
-    const playedDateStr = `${nd.getFullYear()}-${pad(nd.getMonth()+1)}-${pad(nd.getDate())} ${pad(nd.getHours())}:${pad(nd.getMinutes())}`;
-
-    const m1 = await client.query(
-      "INSERT INTO tournament_matches (round_id, player1_id, player2_id, status) VALUES ($1, $2, $3, 'pending') RETURNING id",
-      [r7Id, losers[0], a5]
-    );
-    const m2 = await client.query(
-      "INSERT INTO tournament_matches (round_id, player1_id, player2_id, status) VALUES ($1, $2, $3, 'pending') RETURNING id",
-      [r7Id, losers[1], b5]
-    );
-    const m3 = await client.query(
-      "INSERT INTO tournament_matches (round_id, player1_id, player2_id, winner_id, status, score, played_date) VALUES ($1, $2, NULL, $2, 'completed', 'W.O.', $3) RETURNING id",
-      [r7Id, losers[2], playedDateStr]
-    );
-    const m4 = await client.query(
-      "INSERT INTO tournament_matches (round_id, player1_id, player2_id, winner_id, status, score, played_date) VALUES ($1, $2, NULL, $2, 'completed', 'W.O.', $3) RETURNING id",
-      [r7Id, c5, playedDateStr]
-    );
-
-    await propagateTournamentMatchWinner(client, m3.rows[0].id, losers[2]);
-    await propagateTournamentMatchWinner(client, m4.rows[0].id, c5);
 
     await client.query('COMMIT');
     res.json({ message: 'Playoffs bracket generated successfully' });
   } catch (e) {
     await client.query('ROLLBACK');
     console.error(e);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: e.message || 'Server error' });
   } finally {
     client.release();
   }

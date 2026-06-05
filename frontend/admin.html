@@ -900,11 +900,22 @@ async function reloadTournamentMgmt() {
     ? 'font-family:"Orbitron", sans-serif; font-size:12px; letter-spacing:1.5px; font-weight:700; color:#22c55e;' 
     : 'font-family:"Orbitron", sans-serif; font-size:12px; letter-spacing:1.5px; font-weight:700; color:var(--gold);';
   
-  formatEl.textContent = `Formato: ${data.format === 'custom_3groups' ? '3 Grupos de 5' : 'Eliminación Directa'}`;
+  // Check group count to determine old vs new format
+  let numGroups = 0;
+  const { ok: pOk, data: pData } = await apiFetch(`/tournaments/${selectedTournamentId}/players`);
+  if (pOk && pData) {
+    const groups = new Set(pData.filter(p => p.group_name).map(p => p.group_name));
+    numGroups = groups.size;
+  }
+  const isNewFormat = data.format === 'custom_3groups' && numGroups === 5;
+  formatEl.textContent = `Formato: ${isNewFormat ? '5 Grupos de 3' : data.format === 'custom_3groups' ? '3 Grupos de 5' : 'Eliminación Directa'}`;
   
   const phaseActions = document.getElementById('mgmtPhaseActions');
   if (phaseActions) {
     phaseActions.style.display = data.format === 'custom_3groups' && data.status === 'active' ? 'flex' : 'none';
+    // Show/hide repechaje button based on format
+    const repBtn = phaseActions.querySelector('button:first-child');
+    if (repBtn) repBtn.style.display = isNewFormat ? 'none' : 'flex';
   }
   
   const { ok: mOk, data: mData } = await apiFetch(`/tournaments/${selectedTournamentId}/matches`);
@@ -1145,7 +1156,8 @@ async function generateRepechaje() {
 
 async function generatePlayoffs() {
   if (!selectedTournamentId) return;
-  if (!confirm('¿Generar los brackets de playoffs finales? Esto requiere que la fase de repechaje haya concluido.')) return;
+  const isNew = document.getElementById('mgmtPhaseActions')?.querySelector('button:first-child')?.style?.display === 'none';
+  if (!confirm(isNew ? '¿Generar las llaves de playoffs con los 10 mejores (Top 10 → Play-in → Cuartos → Semifinales → Final)?' : '¿Generar los brackets de playoffs finales? Esto requiere que la fase de repechaje haya concluido.')) return;
   
   const { ok, data } = await apiFetch(`/tournaments/${selectedTournamentId}/generate-playoffs`, {
     method: 'POST'
