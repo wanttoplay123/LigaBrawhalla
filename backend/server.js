@@ -842,20 +842,29 @@ app.patch('/api/matches/:id/reschedule', authMiddleware, adminMiddleware, async 
 
 app.get('/api/seasons/all', async (req, res) => {
   try {
-    const result = await pool.query(`
-      SELECT s.*,
-        (SELECT p.brawlhalla_name FROM season_players sp
-         JOIN players p ON p.id = sp.player_id
-         JOIN matches m ON (m.player1_id = p.id OR m.player2_id = p.id)
-         WHERE sp.season_id = s.id
-         GROUP BY p.id, p.brawlhalla_name
-         ORDER BY SUM(CASE WHEN m.winner_id = p.id THEN 1 ELSE 0 END) DESC
-         LIMIT 1
-        ) AS champion_name
-      FROM seasons s
-      ORDER BY s.started_at DESC
-    `);
-    res.json(result.rows);
+    const seasonsResult = await pool.query('SELECT * FROM seasons ORDER BY started_at DESC');
+    const seasons = seasonsResult.rows;
+    if (seasons.length === 0) return res.json([]);
+
+    // For each season, find the champion with a simple query
+    const enriched = [];
+    for (const s of seasons) {
+      const champResult = await pool.query(`
+        SELECT p.brawlhalla_name,
+          COUNT(CASE WHEN m.winner_id = p.id THEN 1 END) AS wins
+        FROM season_players sp
+        JOIN players p ON p.id = sp.player_id
+        JOIN rounds r ON r.season_id = sp.season_id
+        LEFT JOIN matches m ON m.round_id = r.id AND (m.player1_id = p.id OR m.player2_id = p.id) AND m.status = 'completed'
+        WHERE sp.season_id = $1
+        GROUP BY p.id, p.brawlhalla_name
+        ORDER BY wins DESC
+        LIMIT 1
+      `, [s.id]);
+      s.champion_name = champResult.rows.length > 0 ? champResult.rows[0].brawlhalla_name : null;
+      enriched.push(s);
+    }
+    res.json(enriched);
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'Server error' });
@@ -866,66 +875,53 @@ app.get('/api/seasons/all', async (req, res) => {
 
 app.get('/api/hall-of-fame', async (req, res) => {
   try {
-    const result = await pool.query(`
-      SELECT s.id, s.name, s.started_at, s.ended_at,
-        champion.player_id AS champion_id,
-        champion.brawlhalla_name AS champion_name,
-        champion.wins, champion.losses, champion.points,
-        champion.matches_played,
-        CASE WHEN champion.matches_played > 0
-          THEN ROUND(CAST(champion.wins AS REAL) / CAST(champion.matches_played AS REAL) * 100, 2)
-          ELSE 0 END AS winrate
-      FROM seasons s
-      LEFT JOIN LATERAL (
+    // Step 1: Get all seasons
+    const seasonsResult = await pool.query('SELECT id, name, started_at, ended_at FROM seasons ORDER BY ended_at DESC NULLS LAST');
+    if (seasonsResult.rows.length === 0) return res.json([]);
+
+    const hofEntries = [];
+
+    // Step 2: For each season, find the champion with a simple query
+    for (const s of seasonsResult.rows) {
+      const champResult = await pool.query(`
         SELECT p.id AS player_id, p.brawlhalla_name,
-          COALESCE(SUM(CASE WHEN m.status = 'completed' AND m.winner_id = p.id THEN 1 ELSE 0 END), 0) AS wins,
-          COALESCE(SUM(CASE WHEN m.status = 'completed' AND m.winner_id IS NOT NULL AND m.winner_id != p.id AND (m.player1_id = p.id OR m.player2_id = p.id) THEN 1 ELSE 0 END), 0) AS losses,
+          COUNT(CASE WHEN m.status = 'completed' AND m.winner_id = p.id THEN 1 END) AS wins,
+          COUNT(CASE WHEN m.status = 'completed' AND m.winner_id IS NOT NULL AND m.winner_id != p.id THEN 1 END) AS losses,
           COALESCE(SUM(CASE WHEN m.winner_id = p.id THEN 3 ELSE 0 END), 0) AS points,
-          COALESCE(SUM(CASE WHEN m.status = 'completed' AND (m.player1_id = p.id OR m.player2_id = p.id) THEN 1 ELSE 0 END), 0) AS matches_played
+          COUNT(CASE WHEN m.status = 'completed' THEN 1 END) AS matches_played
         FROM season_players sp
         JOIN players p ON p.id = sp.player_id
-        LEFT JOIN matches m ON (m.player1_id = p.id OR m.player2_id = p.id)
-          AND m.round_id IN (SELECT id FROM rounds WHERE season_id = s.id)
-        WHERE sp.season_id = s.id
+        JOIN rounds r ON r.season_id = $1
+        LEFT JOIN matches m ON m.round_id = r.id
+          AND (m.player1_id = p.id OR m.player2_id = p.id)
+        WHERE sp.season_id = $1
         GROUP BY p.id, p.brawlhalla_name
         ORDER BY points DESC, wins DESC
         LIMIT 1
-      ) champion ON true
-      ORDER BY s.ended_at DESC NULLS LAST
-    `);
-    if (result.rows.length === 0) {
-      const lastResult = await pool.query(`
-        SELECT s.id, s.name, s.started_at, s.ended_at,
-          champion.player_id AS champion_id,
-          champion.brawlhalla_name AS champion_name,
-          champion.wins, champion.losses, champion.points,
-          champion.matches_played,
-          CASE WHEN champion.matches_played > 0
-            THEN ROUND(CAST(champion.wins AS REAL) / CAST(champion.matches_played AS REAL) * 100, 2)
-            ELSE 0 END AS winrate
-        FROM seasons s
-        LEFT JOIN LATERAL (
-          SELECT p.id AS player_id, p.brawlhalla_name,
-            COALESCE(SUM(CASE WHEN m.status = 'completed' AND m.winner_id = p.id THEN 1 ELSE 0 END), 0) AS wins,
-            COALESCE(SUM(CASE WHEN m.status = 'completed' AND m.winner_id IS NOT NULL AND m.winner_id != p.id AND (m.player1_id = p.id OR m.player2_id = p.id) THEN 1 ELSE 0 END), 0) AS losses,
-            COALESCE(SUM(CASE WHEN m.winner_id = p.id THEN 3 ELSE 0 END), 0) AS points,
-            COALESCE(SUM(CASE WHEN m.status = 'completed' AND (m.player1_id = p.id OR m.player2_id = p.id) THEN 1 ELSE 0 END), 0) AS matches_played
-          FROM season_players sp
-          JOIN players p ON p.id = sp.player_id
-          LEFT JOIN matches m ON (m.player1_id = p.id OR m.player2_id = p.id)
-            AND m.round_id IN (SELECT id FROM rounds WHERE season_id = s.id)
-          WHERE sp.season_id = s.id
-          GROUP BY p.id, p.brawlhalla_name
-          ORDER BY points DESC, wins DESC
-          LIMIT 1
-        ) champion ON true
-        ORDER BY s.id DESC LIMIT 1
-      `);
-      return res.json(lastResult.rows);
+      `, [s.id]);
+
+      const champ = champResult.rows[0] || null;
+      const mp = champ ? parseInt(champ.matches_played) : 0;
+      const w = champ ? parseInt(champ.wins) : 0;
+
+      hofEntries.push({
+        id: s.id,
+        name: s.name,
+        started_at: s.started_at,
+        ended_at: s.ended_at,
+        champion_id: champ ? champ.player_id : null,
+        champion_name: champ ? champ.brawlhalla_name : null,
+        wins: w,
+        losses: champ ? parseInt(champ.losses) : 0,
+        points: champ ? parseInt(champ.points) : 0,
+        matches_played: mp,
+        winrate: mp > 0 ? Math.round((w / mp) * 10000) / 100 : 0
+      });
     }
-    res.json(result.rows);
+
+    res.json(hofEntries);
   } catch (e) {
-    console.error(e);
+    console.error('HOF error:', e);
     res.status(500).json({ error: e.message || 'Server error' });
   }
 });
@@ -934,32 +930,72 @@ app.get('/api/hall-of-fame', async (req, res) => {
 
 async function computeStandings(seasonId, res) {
   try {
-    const result = await pool.query(`
-      SELECT p.id, p.brawlhalla_name, p.tier, u.username,
-        COALESCE(SUM(CASE WHEN m.winner_id = p.id THEN 3 ELSE 0 END), 0) AS points,
-        COALESCE(SUM(CASE WHEN m.status = 'completed' AND m.winner_id = p.id THEN 1 ELSE 0 END), 0) AS wins,
-        COALESCE(SUM(CASE WHEN m.status = 'completed' AND m.winner_id IS NOT NULL AND m.winner_id != p.id AND (m.player1_id = p.id OR m.player2_id = p.id) THEN 1 ELSE 0 END), 0) AS losses,
-        COALESCE(SUM(CASE WHEN m.status = 'completed' AND (m.player1_id = p.id OR m.player2_id = p.id) THEN 1 ELSE 0 END), 0) AS matches_played,
-        COALESCE(SUM(CASE WHEN m.status = 'completed' AND m.winner_id = p.id THEN 1 ELSE 0 END), 0) - COALESCE(SUM(CASE WHEN m.status = 'completed' AND m.winner_id IS NOT NULL AND m.winner_id != p.id AND (m.player1_id = p.id OR m.player2_id = p.id) THEN 1 ELSE 0 END), 0) AS difference,
-        CASE
-          WHEN COALESCE(SUM(CASE WHEN m.status = 'completed' AND (m.player1_id = p.id OR m.player2_id = p.id) THEN 1 ELSE 0 END), 0) > 0
-          THEN ROUND(
-            CAST(COALESCE(SUM(CASE WHEN m.status = 'completed' AND m.winner_id = p.id THEN 1 ELSE 0 END), 0) AS REAL) /
-            CAST(COALESCE(SUM(CASE WHEN m.status = 'completed' AND (m.player1_id = p.id OR m.player2_id = p.id) THEN 1 ELSE 0 END), 0) AS REAL) * 100, 2
-          )
-          ELSE 0
-        END AS winrate,
-        COALESCE(sp.initial_position, 0) AS initial_position
+    // Step 1: Get round IDs for this season (simple indexed lookup)
+    const roundsResult = await pool.query('SELECT id FROM rounds WHERE season_id = $1', [seasonId]);
+    const roundIds = roundsResult.rows.map(r => r.id);
+
+    // Step 2: Get all season players
+    const playersResult = await pool.query(`
+      SELECT sp.player_id, sp.initial_position, p.id, p.brawlhalla_name, p.tier, u.username
       FROM season_players sp
       JOIN players p ON p.id = sp.player_id
       JOIN users u ON u.id = p.user_id
-      LEFT JOIN matches m ON (m.player1_id = p.id OR m.player2_id = p.id)
-        AND m.round_id IN (SELECT id FROM rounds WHERE season_id = $1)
       WHERE sp.season_id = $1
-      GROUP BY p.id, p.brawlhalla_name, p.tier, u.username, sp.initial_position
-      ORDER BY points DESC, difference DESC, wins DESC, sp.initial_position ASC
     `, [seasonId]);
-    res.json(result.rows);
+
+    if (roundIds.length === 0 || playersResult.rows.length === 0) {
+      // No rounds yet, return players with zeroed stats
+      return res.json(playersResult.rows.map(p => ({
+        id: p.id, brawlhalla_name: p.brawlhalla_name, tier: p.tier, username: p.username,
+        points: 0, wins: 0, losses: 0, matches_played: 0, difference: 0, winrate: 0,
+        initial_position: p.initial_position || 0
+      })));
+    }
+
+    // Step 3: Get all completed matches for these rounds in one query
+    const matchesResult = await pool.query(`
+      SELECT player1_id, player2_id, winner_id
+      FROM matches
+      WHERE round_id = ANY($1) AND status = 'completed'
+    `, [roundIds]);
+
+    // Step 4: Compute stats in JavaScript
+    const statsMap = {};
+    for (const p of playersResult.rows) {
+      statsMap[p.id] = { wins: 0, losses: 0, matches_played: 0 };
+    }
+
+    for (const m of matchesResult.rows) {
+      const p1 = m.player1_id;
+      const p2 = m.player2_id;
+      if (statsMap[p1]) {
+        statsMap[p1].matches_played++;
+        if (m.winner_id === p1) statsMap[p1].wins++;
+        else if (m.winner_id !== null) statsMap[p1].losses++;
+      }
+      if (statsMap[p2]) {
+        statsMap[p2].matches_played++;
+        if (m.winner_id === p2) statsMap[p2].wins++;
+        else if (m.winner_id !== null) statsMap[p2].losses++;
+      }
+    }
+
+    // Step 5: Build result rows
+    const rows = playersResult.rows.map(p => {
+      const s = statsMap[p.id] || { wins: 0, losses: 0, matches_played: 0 };
+      const points = s.wins * 3;
+      const diff = s.wins - s.losses;
+      const winrate = s.matches_played > 0 ? Math.round((s.wins / s.matches_played) * 10000) / 100 : 0;
+      return {
+        id: p.id, brawlhalla_name: p.brawlhalla_name, tier: p.tier, username: p.username,
+        points, wins: s.wins, losses: s.losses, matches_played: s.matches_played,
+        difference: diff, winrate,
+        initial_position: p.initial_position || 0
+      };
+    });
+
+    rows.sort((a, b) => b.points - a.points || b.difference - a.difference || b.wins - a.wins || a.initial_position - b.initial_position);
+    res.json(rows);
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: e.message || 'Server error' });
