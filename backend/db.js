@@ -71,8 +71,10 @@ async function initDB() {
       CREATE INDEX IF NOT EXISTS idx_matches_player1_id ON matches(player1_id);
       CREATE INDEX IF NOT EXISTS idx_matches_player2_id ON matches(player2_id);
       CREATE INDEX IF NOT EXISTS idx_matches_status ON matches(status);
+
+      DELETE FROM matches WHERE status = 'cancelled';
     `);
-    console.log('PostgreSQL tables ready with indexes');
+    console.log('PostgreSQL tables ready with indexes and cleaned up');
   } finally {
     client.release();
   }

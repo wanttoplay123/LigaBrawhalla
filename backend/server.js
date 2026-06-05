@@ -641,6 +641,8 @@ app.get('/api/matches', async (req, res) => {
     if (statusFilter && validStatuses.includes(statusFilter)) {
       query += ` AND m.status = $2`;
       queryParams.push(statusFilter);
+    } else {
+      query += ` AND m.status != 'cancelled'`;
     }
 
     query += ' ORDER BY r.round_number ASC, m.id ASC';
