@@ -62,12 +62,44 @@
   .hamburger { display: none; flex-direction: column; gap: 5px; cursor: pointer; padding: 4px; }
   .hamburger span { width: 24px; height: 2px; background: #fff; border-radius: 2px; transition: all 0.3s; }
 
-  /* HERO */
+  /* HERO CHARACTERS */
   .hero {
     position: relative; width: 100%; min-height: 100svh;
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    display: flex; flex-direction: row; align-items: flex-end; justify-content: center;
     overflow: hidden; padding-top: 70px;
   }
+  .hero-char {
+    position: absolute; bottom: 0; z-index: 3;
+    width: clamp(280px, 30vw, 480px);
+    pointer-events: none;
+  }
+  .hero-char img {
+    width: 100%; height: auto; display: block;
+    filter: drop-shadow(0 0 30px rgba(0,100,255,0.5)) drop-shadow(0 0 60px rgba(0,80,200,0.3));
+  }
+  .hero-char-left {
+    left: 0;
+    transform: translateX(-8%);
+    animation: charEntryLeft 1.1s cubic-bezier(0.22,1,0.36,1) both;
+  }
+  .hero-char-right {
+    right: 0;
+    transform: translateX(8%) scaleX(-1);
+    animation: charEntryRight 1.1s cubic-bezier(0.22,1,0.36,1) both;
+    filter: drop-shadow(0 0 30px rgba(120,0,255,0.5)) drop-shadow(0 0 60px rgba(100,0,200,0.3));
+  }
+  .hero-char-right img {
+    filter: drop-shadow(0 0 30px rgba(120,0,255,0.5)) drop-shadow(0 0 60px rgba(100,0,200,0.3));
+  }
+  @keyframes charEntryLeft {
+    from { opacity: 0; transform: translateX(-30%) scale(0.9); }
+    to   { opacity: 1; transform: translateX(-8%) scale(1); }
+  }
+  @keyframes charEntryRight {
+    from { opacity: 0; transform: translateX(30%) scaleX(-1) scale(0.9); }
+    to   { opacity: 1; transform: translateX(8%) scaleX(-1) scale(1); }
+  }
+  /* Re-define hero to work with flanking layout */
   .hero-bg {
     position: absolute; inset: 0;
     background: url('ChatGPT_Image_5_jun_2026__15_41_42.png') center center / cover no-repeat;
@@ -78,7 +110,7 @@
     background: radial-gradient(ellipse 60% 50% at 50% 80%, rgba(91,33,182,0.3) 0%, transparent 70%),
                 linear-gradient(180deg, rgba(6,6,20,0.15) 0%, rgba(6,6,20,0.1) 30%, rgba(6,6,20,0.5) 70%, rgba(6,6,20,0.9) 100%);
   }
-  .hero-content { position: relative; z-index: 2; text-align: center; padding: 0 5vw; max-width: 900px; }
+  .hero-content { position: relative; z-index: 4; text-align: center; padding: 0 5vw; max-width: 680px; align-self: center; margin-bottom: 60px; }
   .hero-eyebrow {
     font-family: 'Orbitron', sans-serif; font-size: clamp(11px, 1.5vw, 16px);
     font-weight: 400; letter-spacing: 6px; text-transform: uppercase;
@@ -112,7 +144,7 @@
   }
   .hero-logo-img {
     display: block; margin: 0 auto 10px;
-    width: clamp(320px, 55vw, 750px);
+    width: clamp(280px, 50vw, 600px);
     filter: drop-shadow(0 0 40px rgba(255, 215, 0, 0.5)) drop-shadow(0 0 80px rgba(123,47,190,0.5));
     animation: fadeUp 0.9s ease both; animation-delay: 0.05s;
   }
@@ -282,9 +314,9 @@
   @keyframes fadeUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
 
   /* RESPONSIVE */
-  @media (max-width: 1024px) { .features-grid { grid-template-columns: repeat(2, 1fr); } .season-grid { grid-template-columns: 1fr 1fr; } .steps-grid { grid-template-columns: repeat(2, 1fr); } .news-grid { grid-template-columns: repeat(2, 1fr); } .footer-top { grid-template-columns: 1fr 1fr; } }
-  @media (max-width: 768px) { .nav-links, .nav-actions { display: none; } .hamburger { display: flex; } .features-grid { grid-template-columns: 1fr; } .season-grid { grid-template-columns: 1fr; } .steps-grid { grid-template-columns: 1fr; } .news-grid { grid-template-columns: 1fr; } .footer-top { grid-template-columns: 1fr; } }
-  @media (max-width: 480px) { .hero-ctas { gap: 12px; } .cta-primary, .cta-secondary { font-size: 18px; padding: 12px 24px; } }
+  @media (max-width: 1024px) { .features-grid { grid-template-columns: repeat(2, 1fr); } .season-grid { grid-template-columns: 1fr 1fr; } .steps-grid { grid-template-columns: repeat(2, 1fr); } .news-grid { grid-template-columns: repeat(2, 1fr); } .footer-top { grid-template-columns: 1fr 1fr; } .hero-char { width: clamp(200px, 25vw, 340px); } }
+  @media (max-width: 768px) { .nav-links, .nav-actions { display: none; } .hamburger { display: flex; } .features-grid { grid-template-columns: 1fr; } .season-grid { grid-template-columns: 1fr; } .steps-grid { grid-template-columns: 1fr; } .news-grid { grid-template-columns: 1fr; } .footer-top { grid-template-columns: 1fr; } .hero-char { width: clamp(130px, 22vw, 220px); opacity: 0.5; } .hero-content { max-width: 90vw; } }
+  @media (max-width: 480px) { .hero-ctas { gap: 12px; } .cta-primary, .cta-secondary { font-size: 18px; padding: 12px 24px; } .hero-char { display: none; } }
 </style>
 </head>
 <body>
@@ -337,6 +369,13 @@
 <section class="hero">
   <div class="hero-bg"></div>
   <div class="hero-overlay"></div>
+
+  <!-- Personaje izquierdo -->
+  <div class="hero-char hero-char-left">
+    <img src="char-left.png" alt="Personaje izquierdo" />
+  </div>
+
+  <!-- Contenido central -->
   <div class="hero-content">
     <div class="hero-eyebrow" id="heroEyebrow">⚔ TEMPORADA 1 — 2026 ⚔</div>
     <img src="cos_champions_logo.png" alt="CO'S Champions League" class="hero-logo-img" />
@@ -363,6 +402,12 @@
       </a>
     </div>
   </div>
+
+  <!-- Personaje derecho -->
+  <div class="hero-char hero-char-right">
+    <img src="char-right.png" alt="Personaje derecho" />
+  </div>
+
 </section>
 
 <!-- FEATURES STRIP -->
