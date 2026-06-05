@@ -390,16 +390,21 @@
 
 .bracket-grid {
   display: flex;
-  gap: 40px;
+  gap: 50px;
   overflow-x: auto;
-  padding-bottom: 20px;
-  align-items: flex-start;
+  padding: 40px 20px;
+  align-items: stretch;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.03);
 }
 .bracket-round {
   display: flex;
   flex-direction: column;
-  gap: 24px;
-  min-width: 260px;
+  justify-content: space-around;
+  min-height: 620px;
+  width: 250px;
+  position: relative;
   flex-shrink: 0;
 }
 .bracket-round-title {
@@ -414,35 +419,136 @@
   border-bottom: 1px solid rgba(255,255,255,0.06);
 }
 .bracket-match {
+  position: relative;
   background: var(--card-bg);
   border: 1px solid var(--card-border);
-  border-radius: 10px;
-  overflow: hidden;
+  border-radius: 12px;
+  overflow: visible;
   backdrop-filter: blur(10px);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+  transition: all 0.3s;
 }
-.bracket-match.completed { border-color: rgba(34,197,94,0.15); }
+.bracket-match:hover {
+  border-color: var(--purple-light);
+  box-shadow: 0 0 15px rgba(123, 47, 190, 0.3);
+  transform: translateY(-2px);
+}
 .bracket-slot {
-  padding: 12px 16px;
+  padding: 14px 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   font-family: 'Rajdhani', sans-serif;
   font-weight: 600;
-  font-size: 14px;
-  color: rgba(255,255,255,0.6);
+  font-size: 15px;
+  color: rgba(255,255,255,0.7);
   border-bottom: 1px solid rgba(255,255,255,0.04);
   transition: background 0.2s;
+  position: relative;
+  z-index: 2;
 }
 .bracket-slot:last-child { border-bottom: none; }
 .bracket-slot.winner {
-  background: rgba(34,197,94,0.05);
-  color: var(--gold);
+  background: rgba(34, 197, 94, 0.08);
+  color: #22c55e;
+  font-weight: 700;
 }
 .bracket-slot.tbd { color: rgba(255,255,255,0.2); font-style: italic; }
 .bracket-slot-score {
   font-family: 'Orbitron', sans-serif;
-  font-size: 10px;
-  color: rgba(255,255,255,0.3);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--gold);
+}
+
+/* CONNECTOR LINES */
+.bracket-match::after {
+  content: '';
+  position: absolute;
+  right: -25px; /* half of 50px gap */
+  top: 50%;
+  width: 25px;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.15);
+  z-index: 1;
+}
+.bracket-round:last-child .bracket-match::after {
+  display: none;
+}
+
+.bracket-match::before {
+  content: '';
+  position: absolute;
+  left: -25px;
+  top: 50%;
+  width: 25px;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.15);
+  z-index: 1;
+}
+.bracket-round:first-child .bracket-match::before {
+  display: none;
+}
+
+/* Spacing and heights for connector branch lines */
+.bracket-round.round-1 .bracket-match:nth-child(2n+1)::after {
+  height: 40px;
+  border-right: 2px solid rgba(255, 255, 255, 0.15);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.15);
+  border-bottom-right-radius: 6px;
+}
+.bracket-round.round-1 .bracket-match:nth-child(2n)::after {
+  height: 40px;
+  top: auto;
+  bottom: 50%;
+  border-right: 2px solid rgba(255, 255, 255, 0.15);
+  border-top: 2px solid rgba(255, 255, 255, 0.15);
+  border-top-right-radius: 6px;
+}
+
+.bracket-round.round-2 .bracket-match:nth-child(2n+1)::after {
+  height: 80px;
+  border-right: 2px solid rgba(255, 255, 255, 0.15);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.15);
+  border-bottom-right-radius: 6px;
+}
+.bracket-round.round-2 .bracket-match:nth-child(2n)::after {
+  height: 80px;
+  top: auto;
+  bottom: 50%;
+  border-right: 2px solid rgba(255, 255, 255, 0.15);
+  border-top: 2px solid rgba(255, 255, 255, 0.15);
+  border-top-right-radius: 6px;
+}
+
+.bracket-round.round-3 .bracket-match:nth-child(2n+1)::after {
+  height: 155px;
+  border-right: 2px solid rgba(255, 255, 255, 0.15);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.15);
+  border-bottom-right-radius: 6px;
+}
+.bracket-round.round-3 .bracket-match:nth-child(2n)::after {
+  height: 155px;
+  top: auto;
+  bottom: 50%;
+  border-right: 2px solid rgba(255, 255, 255, 0.15);
+  border-top: 2px solid rgba(255, 255, 255, 0.15);
+  border-top-right-radius: 6px;
+}
+
+.bracket-round.round-4 .bracket-match:nth-child(2n+1)::after {
+  height: 310px;
+  border-right: 2px solid rgba(255, 255, 255, 0.15);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.15);
+  border-bottom-right-radius: 6px;
+}
+.bracket-round.round-4 .bracket-match:nth-child(2n)::after {
+  height: 310px;
+  top: auto;
+  bottom: 50%;
+  border-right: 2px solid rgba(255, 255, 255, 0.15);
+  border-top: 2px solid rgba(255, 255, 255, 0.15);
+  border-top-right-radius: 6px;
 }
 
 /* ─── LEGEND ─── */
@@ -824,9 +930,10 @@ function renderBrackets() {
   html += '<div class="bracket-title"><div class="accent-dot"></div>LLAVES DE ELIMINACIÓN</div>';
   html += '<div class="bracket-grid">';
 
+  let roundIdx = 1;
   for (const round of sortedRounds) {
     html += `
-    <div class="bracket-round">
+    <div class="bracket-round round-${roundIdx}" data-round="${roundIdx}">
       <div class="bracket-round-title">${round.round_name || `RONDA ${round.round_number}`}</div>`;
 
     for (const m of round.matches) {
@@ -840,16 +947,17 @@ function renderBrackets() {
       <div class="bracket-match ${isCompleted ? 'completed' : ''}">
         <div class="bracket-slot ${p1Winner ? 'winner' : ''} ${!m.player1_id ? 'tbd' : ''}">
           <span>${p1Name}</span>
-          ${isCompleted && m.score ? `<span class="bracket-slot-score">${p1Winner ? '✓' : ''}</span>` : ''}
+          ${isCompleted && m.score ? `<span class="bracket-slot-score">${m.score.split('-')[0]}</span>` : ''}
         </div>
         <div class="bracket-slot ${p2Winner ? 'winner' : ''} ${!m.player2_id ? 'tbd' : ''}">
           <span>${p2Name}</span>
-          ${isCompleted && m.score ? `<span class="bracket-slot-score">${p2Winner ? '✓' : ''}</span>` : ''}
+          ${isCompleted && m.score ? `<span class="bracket-slot-score">${m.score.split('-')[1]}</span>` : ''}
         </div>
       </div>`;
     }
 
     html += '</div>';
+    roundIdx++;
   }
 
   html += '</div></div>';
