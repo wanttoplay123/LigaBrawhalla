@@ -1,21 +1,30 @@
 const { Pool } = require('pg');
 const dns = require('dns');
 
-const dbUrl = new URL(process.env.DATABASE_URL);
-const resolved = dns.lookupSync(dbUrl.hostname, { family: 4 });
-const ipv4 = resolved.address;
+let pool = null;
 
-const pool = new Pool({
-  host: ipv4,
-  port: parseInt(dbUrl.port) || 5432,
-  user: decodeURIComponent(dbUrl.username),
-  password: decodeURIComponent(dbUrl.password),
-  database: dbUrl.pathname.slice(1),
-  ssl: { rejectUnauthorized: false }
-});
+async function initPool() {
+  const dbUrl = new URL(process.env.DATABASE_URL);
+  const hostname = dbUrl.hostname;
+  const addresses = await dns.promises.resolve4(hostname);
+  pool = new Pool({
+    host: addresses[0],
+    port: parseInt(dbUrl.port) || 5432,
+    user: decodeURIComponent(dbUrl.username),
+    password: decodeURIComponent(dbUrl.password),
+    database: dbUrl.pathname.slice(1).split('?')[0],
+    ssl: { rejectUnauthorized: false }
+  });
+  return pool;
+}
+
+function getPool() {
+  if (!pool) throw new Error('Pool not initialized');
+  return pool;
+}
 
 async function initDB() {
-  const client = await pool.connect();
+  const client = await getPool().connect();
   try {
     await client.query(`
       CREATE TABLE IF NOT EXISTS users (
@@ -25,7 +34,6 @@ async function initDB() {
         role TEXT DEFAULT 'player' CHECK (role IN ('admin', 'player')),
         created_at TIMESTAMPTZ DEFAULT NOW()
       );
-
       CREATE TABLE IF NOT EXISTS players (
         id SERIAL PRIMARY KEY,
         user_id INTEGER UNIQUE REFERENCES users(id) ON DELETE CASCADE,
@@ -38,7 +46,6 @@ async function initDB() {
         status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
         created_at TIMESTAMPTZ DEFAULT NOW()
       );
-
       CREATE TABLE IF NOT EXISTS seasons (
         id SERIAL PRIMARY KEY,
         name TEXT NOT NULL,
@@ -46,7 +53,6 @@ async function initDB() {
         started_at TIMESTAMPTZ DEFAULT NOW(),
         ended_at TIMESTAMPTZ
       );
-
       CREATE TABLE IF NOT EXISTS season_players (
         id SERIAL PRIMARY KEY,
         season_id INTEGER REFERENCES seasons(id) ON DELETE CASCADE,
@@ -54,7 +60,6 @@ async function initDB() {
         initial_position INTEGER,
         UNIQUE(season_id, player_id)
       );
-
       CREATE TABLE IF NOT EXISTS rounds (
         id SERIAL PRIMARY KEY,
         season_id INTEGER REFERENCES seasons(id) ON DELETE CASCADE,
@@ -62,7 +67,6 @@ async function initDB() {
         status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'active', 'completed')),
         UNIQUE(season_id, round_number)
       );
-
       CREATE TABLE IF NOT EXISTS matches (
         id SERIAL PRIMARY KEY,
         round_id INTEGER REFERENCES rounds(id) ON DELETE CASCADE,
@@ -85,4 +89,4 @@ async function initDB() {
   }
 }
 
-module.exports = { pool, initDB };
+module.exports = { initPool, getPool, initDB };
