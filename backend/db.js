@@ -1,11 +1,16 @@
 const { Pool } = require('pg');
 const dns = require('dns');
-dns.setDefaultResultOrder('ipv4first');
 
-const isProd = process.env.NODE_ENV === 'production';
+const dbUrl = new URL(process.env.DATABASE_URL);
+const resolved = dns.lookupSync(dbUrl.hostname, { family: 4 });
+const ipv4 = resolved.address;
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  host: ipv4,
+  port: parseInt(dbUrl.port) || 5432,
+  user: decodeURIComponent(dbUrl.username),
+  password: decodeURIComponent(dbUrl.password),
+  database: dbUrl.pathname.slice(1),
   ssl: { rejectUnauthorized: false }
 });
 
