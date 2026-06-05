@@ -528,6 +528,7 @@ app.get('/api/seasons/active', async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT s.*,
+        s.status = 'active' AS is_active,
         (SELECT COUNT(*) FROM season_players sp WHERE sp.season_id = s.id) AS player_count,
         (SELECT COUNT(*) FROM rounds r WHERE r.season_id = s.id) AS total_rounds,
         (SELECT COUNT(*) FROM rounds r WHERE r.season_id = s.id AND r.status = 'completed') AS completed_rounds,
@@ -538,10 +539,24 @@ app.get('/api/seasons/active', async (req, res) => {
         (SELECT COUNT(*) FROM matches m
          JOIN rounds r3 ON r3.id = m.round_id
          WHERE r3.season_id = s.id AND r3.status = 'active') AS current_round_total_matches
-      FROM seasons s WHERE s.status = 'active' ORDER BY s.id DESC LIMIT 1
+      FROM seasons s
+      WHERE s.status = 'active'
+      ORDER BY s.id DESC LIMIT 1
     `);
-    if (result.rows.length === 0) return res.json(null);
-    res.json(result.rows[0]);
+    if (result.rows.length > 0) return res.json(result.rows[0]);
+
+    const lastResult = await pool.query(`
+      SELECT s.*, false AS is_active,
+        (SELECT COUNT(*) FROM season_players sp WHERE sp.season_id = s.id) AS player_count,
+        (SELECT COUNT(*) FROM rounds r WHERE r.season_id = s.id) AS total_rounds,
+        (SELECT COUNT(*) FROM rounds r WHERE r.season_id = s.id AND r.status = 'completed') AS completed_rounds,
+        0 AS current_round_completed_matches,
+        0 AS current_round_total_matches
+      FROM seasons s
+      ORDER BY s.id DESC LIMIT 1
+    `);
+    if (lastResult.rows.length === 0) return res.json(null);
+    res.json(lastResult.rows[0]);
   } catch (e) {
     res.status(500).json({ error: 'Server error' });
   }
@@ -921,6 +936,11 @@ app.get('/api/standings', async (req, res) => {
 
     const seasonResult = await pool.query("SELECT id FROM seasons WHERE status = 'active' LIMIT 1");
     if (seasonResult.rows.length === 0) {
+      const lastSeason = await pool.query("SELECT id FROM seasons ORDER BY id DESC LIMIT 1");
+      if (lastSeason.rows.length > 0) {
+        await computeStandings(lastSeason.rows[0].id, res);
+        return;
+      }
       const allPlayers = await pool.query(`
         SELECT p.id, p.brawlhalla_name, p.tier, u.username, 0 AS points, 0 AS wins, 0 AS losses, 0 AS matches_played, 0 AS difference, 0.00 AS winrate
         FROM players p JOIN users u ON u.id = p.user_id WHERE p.status = 'approved' AND p.brawlhalla_id IS NOT NULL ORDER BY p.created_at ASC

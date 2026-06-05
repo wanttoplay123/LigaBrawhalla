@@ -521,15 +521,24 @@ async function loadSeason() {
     const { ok, data } = await apiFetch('/seasons/active');
     if (data) {
       document.getElementById('seasonName').textContent = data.name;
-      document.getElementById('seasonDates').textContent = `Iniciada ${new Date(data.started_at).toLocaleDateString()}`;
+      const ended = data.ended_at ? new Date(data.ended_at).toLocaleDateString() : null;
+      if (data.is_active) {
+        document.getElementById('seasonDates').textContent = `Iniciada ${new Date(data.started_at).toLocaleDateString()}`;
+        document.getElementById('heroEyebrow').textContent = `⚔ ${data.name} — 2026 ⚔`;
+      } else {
+        document.getElementById('seasonDates').textContent = `Finalizada ${ended || ''}`;
+        document.getElementById('heroEyebrow').textContent = `⚔ ${data.name} — FINALIZADA ⚔`;
+      }
       const pct = data.total_rounds > 0 ? Math.round((data.completed_rounds / data.total_rounds) * 100) : 0;
       let label = `${data.completed_rounds} / ${data.total_rounds} jornadas`;
-      if (data.current_round_total_matches > 0) {
+      if (data.is_active && data.current_round_total_matches > 0) {
         label += ` · Ronda actual: ${data.current_round_completed_matches}/${data.current_round_total_matches} partidas`;
+      }
+      if (!data.is_active) {
+        label += ' · Temporada finalizada';
       }
       document.getElementById('seasonProgressLabel').textContent = label;
       document.getElementById('seasonProgressFill').style.width = pct + '%';
-      document.getElementById('heroEyebrow').textContent = `⚔ ${data.name} — 2026 ⚔`;
     }
   } catch (e) {
     console.error('loadSeason error:', e);
