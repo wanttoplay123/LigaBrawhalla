@@ -99,6 +99,13 @@ app.post('/api/auth/login', async (req, res) => {
     const valid = await bcrypt.compare(password, user.password_hash);
     if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
 
+    if (user.role !== 'admin') {
+      const playerCheck = await pool.query('SELECT status FROM players WHERE user_id = $1', [user.id]);
+      if (playerCheck.rows.length > 0 && playerCheck.rows[0].status !== 'approved') {
+        return res.status(403).json({ error: 'Tu cuenta aún no ha sido aprobada por un administrador' });
+      }
+    }
+
     const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
     res.json({ token, username: user.username, role: user.role, brawlhalla_id: user.brawlhalla_id });
   } catch (e) {
@@ -565,6 +572,14 @@ app.get('/api/seasons/active', async (req, res) => {
 app.post('/api/seasons/:id/end', authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const now = new Date().toISOString();
+    await pool.query(`
+      UPDATE matches SET status = 'cancelled'
+      WHERE status = 'pending' AND round_id IN (SELECT id FROM rounds WHERE season_id = $1)
+    `, [req.params.id]);
+    await pool.query(`
+      UPDATE rounds SET status = 'completed'
+      WHERE season_id = $1 AND status != 'completed'
+    `, [req.params.id]);
     await pool.query("UPDATE seasons SET status = 'completed', ended_at = $1 WHERE id = $2", [now, req.params.id]);
     res.json({ message: 'Season ended' });
   } catch (e) {
@@ -876,9 +891,38 @@ app.get('/api/hall-of-fame', async (req, res) => {
         ORDER BY points DESC, wins DESC
         LIMIT 1
       ) champion ON true
-      WHERE s.status = 'completed'
-      ORDER BY s.ended_at DESC
+      ORDER BY s.ended_at DESC NULLS LAST
     `);
+    if (result.rows.length === 0) {
+      const lastResult = await pool.query(`
+        SELECT s.id, s.name, s.started_at, s.ended_at,
+          champion.player_id AS champion_id,
+          champion.brawlhalla_name AS champion_name,
+          champion.wins, champion.losses, champion.points,
+          champion.matches_played,
+          CASE WHEN champion.matches_played > 0
+            THEN ROUND(CAST(champion.wins AS REAL) / CAST(champion.matches_played AS REAL) * 100, 2)
+            ELSE 0 END AS winrate
+        FROM seasons s
+        LEFT JOIN LATERAL (
+          SELECT p.id AS player_id, p.brawlhalla_name,
+            COUNT(*) FILTER (WHERE m.status = 'completed' AND m.winner_id = p.id) AS wins,
+            COUNT(*) FILTER (WHERE m.status = 'completed' AND m.winner_id IS NOT NULL AND m.winner_id != p.id AND (m.player1_id = p.id OR m.player2_id = p.id)) AS losses,
+            COALESCE(SUM(CASE WHEN m.winner_id = p.id THEN 3 ELSE 0 END), 0) AS points,
+            COUNT(*) FILTER (WHERE m.status = 'completed' AND (m.player1_id = p.id OR m.player2_id = p.id)) AS matches_played
+          FROM season_players sp
+          JOIN players p ON p.id = sp.player_id
+          LEFT JOIN matches m ON (m.player1_id = p.id OR m.player2_id = p.id)
+            AND m.round_id IN (SELECT id FROM rounds WHERE season_id = s.id)
+          WHERE sp.season_id = s.id
+          GROUP BY p.id, p.brawlhalla_name
+          ORDER BY points DESC, wins DESC
+          LIMIT 1
+        ) champion ON true
+        ORDER BY s.id DESC LIMIT 1
+      `);
+      return res.json(lastResult.rows);
+    }
     res.json(result.rows);
   } catch (e) {
     console.error(e);
