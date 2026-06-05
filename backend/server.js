@@ -383,6 +383,41 @@ app.post('/api/admin/users', authMiddleware, adminMiddleware, async (req, res) =
   }
 });
 
+// ─── ADMIN: LIST USERS ───
+
+app.get('/api/admin/users', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT u.id, u.username, u.role, u.created_at,
+        p.brawlhalla_name, p.brawlhalla_id
+      FROM users u
+      LEFT JOIN players p ON p.user_id = u.id
+      ORDER BY u.role ASC, u.username ASC
+    `);
+    res.json(result.rows);
+  } catch (e) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ─── ADMIN: RESET USER PASSWORD ───
+
+app.patch('/api/admin/users/:id/password', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { new_password } = req.body;
+    if (!new_password || new_password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
+
+    const userResult = await pool.query('SELECT id, role FROM users WHERE id = $1', [req.params.id]);
+    if (userResult.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+
+    const hash = await bcrypt.hash(new_password, 10);
+    await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [hash, req.params.id]);
+    res.json({ message: 'Password updated' });
+  } catch (e) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 app.get('/api/admin/profile', authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const result = await pool.query(`
@@ -495,7 +530,14 @@ app.get('/api/seasons/active', async (req, res) => {
       SELECT s.*,
         (SELECT COUNT(*) FROM season_players sp WHERE sp.season_id = s.id) AS player_count,
         (SELECT COUNT(*) FROM rounds r WHERE r.season_id = s.id) AS total_rounds,
-        (SELECT COUNT(*) FROM rounds r WHERE r.season_id = s.id AND r.status = 'completed') AS completed_rounds
+        (SELECT COUNT(*) FROM rounds r WHERE r.season_id = s.id AND r.status = 'completed') AS completed_rounds,
+        (SELECT COUNT(*) FROM matches m
+         JOIN rounds r2 ON r2.id = m.round_id
+         WHERE r2.season_id = s.id AND r2.status = 'active'
+         AND m.status = 'completed') AS current_round_completed_matches,
+        (SELECT COUNT(*) FROM matches m
+         JOIN rounds r3 ON r3.id = m.round_id
+         WHERE r3.season_id = s.id AND r3.status = 'active') AS current_round_total_matches
       FROM seasons s WHERE s.status = 'active' ORDER BY s.id DESC LIMIT 1
     `);
     if (result.rows.length === 0) return res.json(null);
@@ -790,6 +832,45 @@ app.get('/api/seasons/all', async (req, res) => {
   }
 });
 
+// ─── HALL OF FAME ───
+
+app.get('/api/hall-of-fame', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT s.id, s.name, s.started_at, s.ended_at,
+        champion.player_id AS champion_id,
+        champion.brawlhalla_name AS champion_name,
+        champion.wins, champion.losses, champion.points,
+        champion.matches_played,
+        CASE WHEN champion.matches_played > 0
+          THEN ROUND(CAST(champion.wins AS REAL) / CAST(champion.matches_played AS REAL) * 100, 2)
+          ELSE 0 END AS winrate
+      FROM seasons s
+      LEFT JOIN LATERAL (
+        SELECT p.id AS player_id, p.brawlhalla_name,
+          COUNT(*) FILTER (WHERE m.status = 'completed' AND m.winner_id = p.id) AS wins,
+          COUNT(*) FILTER (WHERE m.status = 'completed' AND m.winner_id IS NOT NULL AND m.winner_id != p.id AND (m.player1_id = p.id OR m.player2_id = p.id)) AS losses,
+          COALESCE(SUM(CASE WHEN m.winner_id = p.id THEN 3 ELSE 0 END), 0) AS points,
+          COUNT(*) FILTER (WHERE m.status = 'completed' AND (m.player1_id = p.id OR m.player2_id = p.id)) AS matches_played
+        FROM season_players sp
+        JOIN players p ON p.id = sp.player_id
+        LEFT JOIN matches m ON (m.player1_id = p.id OR m.player2_id = p.id)
+          AND m.round_id IN (SELECT id FROM rounds WHERE season_id = s.id)
+        WHERE sp.season_id = s.id
+        GROUP BY p.id, p.brawlhalla_name
+        ORDER BY points DESC, wins DESC
+        LIMIT 1
+      ) champion ON true
+      WHERE s.status = 'completed'
+      ORDER BY s.ended_at DESC
+    `);
+    res.json(result.rows);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // ─── STANDINGS ───
 
 async function computeStandings(seasonId, res) {
@@ -797,15 +878,16 @@ async function computeStandings(seasonId, res) {
     const result = await pool.query(`
       SELECT p.id, p.brawlhalla_name, p.tier, u.username,
         COALESCE(SUM(CASE WHEN m.winner_id = p.id THEN 3 ELSE 0 END), 0) AS points,
-        COUNT(*) FILTER (WHERE m.status = 'completed' AND m.winner_id = p.id) AS wins,
-        COUNT(*) FILTER (WHERE m.status = 'completed' AND m.winner_id IS NOT NULL AND m.winner_id != p.id AND (m.player1_id = p.id OR m.player2_id = p.id)) AS losses,
-        COUNT(*) FILTER (WHERE m.status = 'completed' AND m.winner_id = p.id) - COUNT(*) FILTER (WHERE m.status = 'completed' AND m.winner_id IS NOT NULL AND m.winner_id != p.id AND (m.player1_id = p.id OR m.player2_id = p.id)) AS difference,
-        COUNT(*) FILTER (WHERE m.status = 'completed' AND (m.player1_id = p.id OR m.player2_id = p.id)) AS matches_played,
+        COALESCE(COUNT(*) FILTER (WHERE m.status = 'completed' AND m.winner_id = p.id), 0) AS wins,
+        COALESCE(COUNT(*) FILTER (WHERE m.status = 'completed' AND m.winner_id IS NOT NULL AND m.winner_id != p.id AND (m.player1_id = p.id OR m.player2_id = p.id)), 0) AS losses,
+        COALESCE(COUNT(*) FILTER (WHERE m.status = 'completed' AND (m.player1_id = p.id OR m.player2_id = p.id)), 0) AS matches_played,
+        COALESCE(COUNT(*) FILTER (WHERE m.status = 'completed' AND m.winner_id = p.id), 0) -
+        COALESCE(COUNT(*) FILTER (WHERE m.status = 'completed' AND m.winner_id IS NOT NULL AND m.winner_id != p.id AND (m.player1_id = p.id OR m.player2_id = p.id)), 0) AS difference,
         CASE
-          WHEN COUNT(*) FILTER (WHERE m.status = 'completed' AND (m.player1_id = p.id OR m.player2_id = p.id)) > 0
+          WHEN COALESCE(COUNT(*) FILTER (WHERE m.status = 'completed' AND (m.player1_id = p.id OR m.player2_id = p.id)), 0) > 0
           THEN ROUND(
-            CAST(COUNT(*) FILTER (WHERE m.status = 'completed' AND m.winner_id = p.id) AS REAL) /
-            CAST(COUNT(*) FILTER (WHERE m.status = 'completed' AND (m.player1_id = p.id OR m.player2_id = p.id)) AS REAL) * 100, 2
+            CAST(COALESCE(COUNT(*) FILTER (WHERE m.status = 'completed' AND m.winner_id = p.id), 0) AS REAL) /
+            CAST(COALESCE(COUNT(*) FILTER (WHERE m.status = 'completed' AND (m.player1_id = p.id OR m.player2_id = p.id)), 0) AS REAL) * 100, 2
           )
           ELSE 0
         END AS winrate,

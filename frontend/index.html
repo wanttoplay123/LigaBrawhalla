@@ -298,6 +298,7 @@
     <li><a href="index.html" class="active">INICIO</a></li>
     <li><a href="standings.html">RANKINGS</a></li>
     <li><a href="matches.html">PARTIDAS</a></li>
+    <li><a href="hall-of-fame.html">SALÓN DE LA FAMA</a></li>
     <li class="nav-auth-hide"><a href="register.html">REGISTRARSE</a></li>
     <li><a href="login.html" class="nav-auth-link" data-page="login">INICIAR SESIÓN</a></li>
     <li class="nav-auth-show nav-auth-admin" style="display:none"><a href="admin.html">PANEL ADMIN</a></li>
@@ -319,6 +320,7 @@
   <a href="index.html">INICIO</a>
   <a href="standings.html">RANKINGS</a>
   <a href="matches.html">PARTIDAS</a>
+  <a href="hall-of-fame.html">SALÓN DE LA FAMA</a>
   <a class="nav-auth-hide" href="register.html">REGISTRARSE</a>
   <a href="login.html" class="nav-auth-link" data-page="login">INICIAR SESIÓN</a>
   <a class="nav-auth-show nav-auth-admin" style="display:none" href="admin.html">PANEL ADMIN</a>
@@ -459,58 +461,7 @@
   </div>
 </section>
 
-<!-- NEWS -->
-<section class="news-section">
-  <div class="news-header">
-    <div>
-      <div class="section-label">ÚLTIMAS NOTICIAS</div>
-      <h2 class="section-title" style="font-size:clamp(28px,4vw,44px);">NOTICIAS <span class="accent">RECIENTES</span></h2>
-    </div>
-    <a href="#" style="font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:3px;color:var(--purple);text-decoration:none;">VER TODAS →</a>
-  </div>
-  <div class="news-grid">
-    <a href="#" class="news-card">
-      <div style="position:relative;">
-        <div class="news-img" style="background:linear-gradient(135deg,#2d1b69,#1a0a3e);height:160px;display:flex;align-items:center;justify-content:center;">
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#a855f7" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-        </div>
-        <div class="news-img-overlay"></div>
-        <span class="news-new-badge">NUEVO</span>
-      </div>
-      <div class="news-body">
-        <h4>Reglas oficiales Season 1 ya disponibles</h4>
-        <p>Conoce todas las reglas y lineamientos de la nueva temporada competitiva.</p>
-        <div class="news-meta">Hace 2 horas</div>
-      </div>
-    </a>
-    <a href="#" class="news-card">
-      <div style="position:relative;">
-        <div class="news-img" style="background:linear-gradient(135deg,#1a3e2d,#0a2a1a);height:160px;display:flex;align-items:center;justify-content:center;">
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-        </div>
-        <div class="news-img-overlay"></div>
-      </div>
-      <div class="news-body">
-        <h4>Torneo 2v2 este fin de semana</h4>
-        <p>Inscripciones abiertas. ¡No te lo pierdas! Únete con tu equipo favorito.</p>
-        <div class="news-meta">Hace 5 horas</div>
-      </div>
-    </a>
-    <a href="#" class="news-card">
-      <div style="position:relative;">
-        <div class="news-img" style="background:linear-gradient(135deg,#692d1b,#3e1a0a);height:160px;display:flex;align-items:center;justify-content:center;">
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#eab308" stroke-width="1.5"><circle cx="12" cy="9" r="5"/><path d="M8.21 13.89 7 22l5-3 5 3-1.21-8.11"/></svg>
-        </div>
-        <div class="news-img-overlay"></div>
-      </div>
-      <div class="news-body">
-        <h4>Nuevos jugadores se unen a la liga</h4>
-        <p>Más guerreros se registran cada semana. La comunidad crece y la competencia aumenta.</p>
-        <div class="news-meta">Hace 1 día</div>
-      </div>
-    </a>
-  </div>
-</section>
+
 
 <!-- FOOTER -->
 <footer>
@@ -532,6 +483,7 @@
         <h4>LIGA</h4>
         <a href="standings.html">Rankings</a>
         <a href="matches.html">Partidas</a>
+        <a href="hall-of-fame.html">Salón de la Fama</a>
         <a href="register.html">Registro</a>
       </div>
       <div class="footer-col">
@@ -573,7 +525,11 @@ async function loadSeason() {
       document.getElementById('seasonName').textContent = data.name;
       document.getElementById('seasonDates').textContent = `Iniciada ${new Date(data.started_at).toLocaleDateString()}`;
       const pct = data.total_rounds > 0 ? Math.round((data.completed_rounds / data.total_rounds) * 100) : 0;
-      document.getElementById('seasonProgressLabel').textContent = `${data.completed_rounds} / ${data.total_rounds} jornadas`;
+      let label = `${data.completed_rounds} / ${data.total_rounds} jornadas`;
+      if (data.current_round_total_matches > 0) {
+        label += ` · Ronda actual: ${data.current_round_completed_matches}/${data.current_round_total_matches} partidas`;
+      }
+      document.getElementById('seasonProgressLabel').textContent = label;
       document.getElementById('seasonProgressFill').style.width = pct + '%';
       document.getElementById('heroEyebrow').textContent = `⚔ ${data.name} — 2026 ⚔`;
     }

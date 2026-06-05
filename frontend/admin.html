@@ -42,6 +42,7 @@
     <li><a href="index.html">INICIO</a></li>
     <li><a href="standings.html">RANKINGS</a></li>
     <li><a href="matches.html">PARTIDAS</a></li>
+    <li><a href="hall-of-fame.html">SALÓN DE LA FAMA</a></li>
     <li><a href="admin.html" class="active">ADMIN</a></li>
     <li><a href="#" class="nav-auth-logout" style="color:#ef4444;">👤 <span class="nav-auth-username"></span> — SALIR</a></li>
   </ul>
@@ -51,6 +52,7 @@
   <a href="index.html">INICIO</a>
   <a href="standings.html">RANKINGS</a>
   <a href="matches.html">PARTIDAS</a>
+  <a href="hall-of-fame.html">SALÓN DE LA FAMA</a>
   <a href="admin.html">ADMIN</a>
   <a href="#" class="nav-auth-logout" style="color:#ef4444;">👤 <span class="nav-auth-username"></span> — SALIR</a>
 </nav>
@@ -138,6 +140,15 @@
           JUGADORES ACTIVOS
         </h3>
         <div id="activePlayers">Cargando...</div>
+      </div>
+
+      <!-- User Management / Password Reset -->
+      <div class="admin-card">
+        <h3>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FFD700" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          GESTIÓN DE USUARIOS
+        </h3>
+        <div id="usersList">Cargando...</div>
       </div>
     </div>
   </div>
@@ -630,12 +641,56 @@ document.getElementById('createAdminForm').addEventListener('submit', async (e) 
   }
 });
 
+// ─── USER MANAGEMENT ───
+
+async function loadUsers() {
+  const { ok, data } = await apiFetch('/admin/users');
+  const div = document.getElementById('usersList');
+  if (!ok || data.length === 0) {
+    div.innerHTML = '<p style="color:rgba(255,255,255,0.4);font-size:14px;">No hay usuarios</p>';
+    return;
+  }
+  let html = '<table class="admin-table"><tr><th>Usuario</th><th>Rol</th><th>Brawlhalla</th><th>Acción</th></tr>';
+  data.forEach(u => {
+    const isAdmin = u.role === 'admin';
+    html += `<tr>
+      <td>${u.username}</td>
+      <td>${isAdmin ? '👑 Admin' : '🎮 Player'}</td>
+      <td>${u.brawlhalla_name || '—'}</td>
+      <td>${isAdmin ? '<span style="color:rgba(255,255,255,0.3);font-size:12px;">—</span>' :
+        `<button class="admin-btn btn-action" onclick="resetUserPassword(${u.id},'${u.username.replace(/'/g,"\\'")}')">CAMBIAR CONTRASEÑA</button>`}
+      </td>
+    </tr>`;
+  });
+  html += '</table>';
+  div.innerHTML = html;
+}
+
+async function resetUserPassword(userId, username) {
+  const newPassword = prompt(`Nueva contraseña para "${username}":`);
+  if (!newPassword || newPassword.length < 6) {
+    showNotification('La contraseña debe tener al menos 6 caracteres', 'error');
+    return;
+  }
+  if (!confirm(`¿Restablecer contraseña de "${username}"?`)) return;
+  const { ok, data } = await apiFetch(`/admin/users/${userId}/password`, {
+    method: 'PATCH',
+    body: JSON.stringify({ new_password: newPassword })
+  });
+  if (ok) {
+    showNotification('Contraseña actualizada', 'success');
+  } else {
+    showNotification(data.error || 'Error', 'error');
+  }
+}
+
 // ─── INIT ───
 loadPending();
 loadSeasonStatus();
 loadProfile();
 loadPendingMatches();
 loadActivePlayers();
+loadUsers();
 setInterval(loadPending, 15000);
 setInterval(() => { if (currentMatchTab === 'pending') loadPendingMatches(); else loadCompletedMatches(); }, 15000);
 updateNav();
