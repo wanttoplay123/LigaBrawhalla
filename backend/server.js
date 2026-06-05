@@ -849,7 +849,7 @@ app.get('/api/seasons/all', async (req, res) => {
          JOIN matches m ON (m.player1_id = p.id OR m.player2_id = p.id)
          WHERE sp.season_id = s.id
          GROUP BY p.id, p.brawlhalla_name
-         ORDER BY COUNT(*) FILTER (WHERE m.winner_id = p.id) DESC
+         ORDER BY SUM(CASE WHEN m.winner_id = p.id THEN 1 ELSE 0 END) DESC
          LIMIT 1
         ) AS champion_name
       FROM seasons s
@@ -878,10 +878,10 @@ app.get('/api/hall-of-fame', async (req, res) => {
       FROM seasons s
       LEFT JOIN LATERAL (
         SELECT p.id AS player_id, p.brawlhalla_name,
-          COUNT(*) FILTER (WHERE m.status = 'completed' AND m.winner_id = p.id) AS wins,
-          COUNT(*) FILTER (WHERE m.status = 'completed' AND m.winner_id IS NOT NULL AND m.winner_id != p.id AND (m.player1_id = p.id OR m.player2_id = p.id)) AS losses,
+          COALESCE(SUM(CASE WHEN m.status = 'completed' AND m.winner_id = p.id THEN 1 ELSE 0 END), 0) AS wins,
+          COALESCE(SUM(CASE WHEN m.status = 'completed' AND m.winner_id IS NOT NULL AND m.winner_id != p.id AND (m.player1_id = p.id OR m.player2_id = p.id) THEN 1 ELSE 0 END), 0) AS losses,
           COALESCE(SUM(CASE WHEN m.winner_id = p.id THEN 3 ELSE 0 END), 0) AS points,
-          COUNT(*) FILTER (WHERE m.status = 'completed' AND (m.player1_id = p.id OR m.player2_id = p.id)) AS matches_played
+          COALESCE(SUM(CASE WHEN m.status = 'completed' AND (m.player1_id = p.id OR m.player2_id = p.id) THEN 1 ELSE 0 END), 0) AS matches_played
         FROM season_players sp
         JOIN players p ON p.id = sp.player_id
         LEFT JOIN matches m ON (m.player1_id = p.id OR m.player2_id = p.id)
