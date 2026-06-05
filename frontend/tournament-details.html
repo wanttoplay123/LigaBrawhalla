@@ -722,6 +722,7 @@ async function loadTournament() {
   renderMatches();
   renderBrackets();
   renderPlayers();
+  loadTournamentMessages();
 
   // Adjust tabs for format
   if (tournament.format === 'single_elimination') {
@@ -733,7 +734,8 @@ async function loadTournament() {
 
 function renderHero() {
   const meta = document.getElementById('tournamentMeta');
-  const formatLabel = tournament.format === 'custom_3groups' ? '3 GRUPOS + REPECHAJE + PLAYOFFS' : 'ELIMINACIÓN DIRECTA';
+  const isNewFormat = players.filter(p => p.group_name).reduce((acc, p) => { acc.add(p.group_name); return acc; }, new Set()).size === 5;
+  const formatLabel = tournament.format === 'custom_3groups' ? (isNewFormat ? '5 GRUPOS + PLAYOFFS' : '3 GRUPOS + REPECHAJE + PLAYOFFS') : 'ELIMINACIÓN DIRECTA';
   const statusLabel = tournament.status === 'active' ? 'EN CURSO' : 'FINALIZADO';
   const statusClass = tournament.status === 'active' ? 't-badge-active' : 't-badge-completed';
 

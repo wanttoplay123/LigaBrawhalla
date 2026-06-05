@@ -394,6 +394,7 @@ async function loadTournaments() {
 
   renderTournaments();
   storeTournamentStatuses();
+  loadTournamentMessages();
 }
 
 function renderTournaments() {
@@ -522,6 +523,17 @@ function storeTournamentStatuses() {
         }
       }
     } catch {}
+  }
+}
+
+async function loadTournamentMessages() {
+  const myPid = getPlayerId();
+  if (!myPid) return;
+  const { ok, data } = await apiFetch('/tournament-messages');
+  if (ok && Array.isArray(data)) {
+    for (const msg of data) {
+      showNotification('📬 ' + msg.message, 'info');
+    }
   }
 }
 

@@ -1962,6 +1962,17 @@ async function generatePlayoffsNewFormat(client, tournamentId) {
 
   for (const g of Object.keys(groups)) groups[g].sort(sortFn);
 
+  // Notify eliminated players (3rd place in each group)
+  const msg = 'Gracias por participar. Sigue mejorando para poder participar en la liga, no te rindas, habrán más torneos próximamente.';
+  for (const g of Object.keys(groups)) {
+    if (groups[g].length >= 3) {
+      await client.query(
+        'INSERT INTO tournament_player_messages (tournament_id, player_id, message) VALUES ($1, $2, $3)',
+        [tournamentId, groups[g][2].player_id, msg]
+      );
+    }
+  }
+
   const allQualified = [];
   for (const g of Object.keys(groups)) {
     allQualified.push(groups[g][0]); // 1st place
@@ -2214,6 +2225,31 @@ app.post('/api/tournaments/:id/generate-playoffs', authMiddleware, adminMiddlewa
     res.status(500).json({ error: e.message || 'Server error' });
   } finally {
     client.release();
+  }
+});
+
+app.get('/api/tournament-messages', authMiddleware, async (req, res) => {
+  try {
+    const player = await pool.query('SELECT id FROM players WHERE user_id = $1', [req.user.id]);
+    if (player.rows.length === 0) return res.json([]);
+    const result = await pool.query(
+      `SELECT tpm.id, tpm.message, tpm.read, tpm.created_at, t.name AS tournament_name
+       FROM tournament_player_messages tpm
+       JOIN tournaments t ON t.id = tpm.tournament_id
+       WHERE tpm.player_id = $1
+       ORDER BY tpm.created_at DESC`,
+      [player.rows[0].id]
+    );
+    if (result.rows.length > 0) {
+      await pool.query(
+        'UPDATE tournament_player_messages SET read = true WHERE player_id = $1 AND read = false',
+        [player.rows[0].id]
+      );
+    }
+    res.json(result.rows);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Server error' });
   }
 });
 
