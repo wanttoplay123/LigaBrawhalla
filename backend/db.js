@@ -83,7 +83,7 @@ async function initDB() {
         id SERIAL PRIMARY KEY,
         tournament_id INTEGER REFERENCES tournaments(id) ON DELETE CASCADE,
         player_id INTEGER REFERENCES players(id) ON DELETE CASCADE,
-        group_name TEXT CHECK (group_name IN ('A', 'B', 'C') OR group_name IS NULL),
+        group_name TEXT CHECK (group_name IN ('A', 'B', 'C', 'D', 'E') OR group_name IS NULL),
         status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'approved')),
         seed INTEGER,
         created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -119,6 +119,10 @@ async function initDB() {
       CREATE INDEX IF NOT EXISTS idx_tournament_matches_round_id ON tournament_matches(round_id);
 
       DELETE FROM matches WHERE status = 'cancelled';
+
+      -- Allow groups D and E for new 5-group format
+      ALTER TABLE tournament_players DROP CONSTRAINT IF EXISTS tournament_players_group_name_check;
+      ALTER TABLE tournament_players ADD CONSTRAINT tournament_players_group_name_check CHECK (group_name IN ('A', 'B', 'C', 'D', 'E') OR group_name IS NULL);
     `);
     console.log('PostgreSQL tables ready with indexes and cleaned up');
   } finally {
