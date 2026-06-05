@@ -8,7 +8,7 @@ async function initPool() {
   const hostname = dbUrl.hostname;
   const addresses = await dns.promises.resolve4(hostname);
   const ipv4 = addresses[0];
-  const fixedUrl = process.env.DATABASE_URL.replace(hostname, ipv4);
+  const fixedUrl = process.env.DATABASE_URL.replace(hostname, ipv4).replace(/\?sslmode=\w+/g, '');
   pool = new Pool({
     connectionString: fixedUrl,
     ssl: { rejectUnauthorized: false }
