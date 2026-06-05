@@ -930,7 +930,7 @@ app.get('/api/hall-of-fame', async (req, res) => {
   }
 });
 
-// ─── STANDINGS ───
+// ─── STANDINGS ────────────────────────────────
 
 async function computeStandings(seasonId, res) {
   try {
