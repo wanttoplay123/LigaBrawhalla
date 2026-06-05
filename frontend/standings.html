@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rankings - CO'S CHAMPIONS LEAGUE</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@400;500;600;700&family=Orbitron:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav>
+  <a href="index.html" class="nav-logo">
+    <svg class="nav-logo-icon" viewBox="0 0 40 40" fill="none"><defs><linearGradient id="shieldGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#FFD700"/><stop offset="100%" style="stop-color:#7B2FBE"/></linearGradient></defs><path d="M20 2L4 8v12c0 8 6 14 16 18 10-4 16-10 16-18V8L20 2z" fill="url(#shieldGrad)" stroke="#FFD700" stroke-width="1"/><path d="M20 8L20 22M14 14L20 8L26 14" stroke="#060614" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="20" cy="6" r="2" fill="#060614"/></svg>
+    <span class="nav-logo-text"><span>CO'S</span><span>CHAMPIONS LEAGUE</span></span>
+  </a>
+  <ul class="nav-links">
+    <li><a href="index.html">INICIO</a></li>
+    <li><a href="standings.html" class="active">RANKINGS</a></li>
+    <li><a href="matches.html">PARTIDAS</a></li>
+    <li class="nav-auth-hide"><a href="register.html">REGISTRARSE</a></li>
+    <li><a href="login.html" class="nav-auth-link" data-page="login">INICIAR SESIÓN</a></li>
+    <li class="nav-auth-show nav-auth-admin" style="display:none"><a href="admin.html">PANEL ADMIN</a></li>
+    <li class="nav-auth-show" style="display:none"><a href="#" class="nav-auth-logout">👤 <span class="nav-auth-username"></span> — SALIR</a></li>
+  </ul>
+  <div class="hamburger" onclick="document.getElementById('mobileMenu').classList.toggle('open')"><span></span><span></span><span></span></div>
+</nav>
+<nav class="mobile-menu" id="mobileMenu">
+  <a href="index.html">INICIO</a>
+  <a href="standings.html">RANKINGS</a>
+  <a href="matches.html">PARTIDAS</a>
+  <a class="nav-auth-hide" href="register.html">REGISTRARSE</a>
+  <a href="login.html" class="nav-auth-link" data-page="login">INICIAR SESIÓN</a>
+  <a class="nav-auth-show nav-auth-admin" style="display:none" href="admin.html">PANEL ADMIN</a>
+  <a class="nav-auth-show nav-auth-logout" style="display:none" href="#">👤 <span class="nav-auth-username"></span> — SALIR</a>
+</nav>
+</nav>
+
+<section class="page-section">
+  <div style="max-width:1200px; margin:0 auto;">
+    <div class="section-header">
+      <div class="section-label">CLASIFICACIÓN</div>
+      <h2 class="section-title">TABLA DE <span class="accent">POSICIONES</span></h2>
+    </div>
+    <div id="seasonSelector" style="display:flex;justify-content:center;margin-bottom:24px;"></div>
+    <div id="standingsContent">
+      <div style="text-align:center;padding:60px 0;color:rgba(255,255,255,0.4);font-size:18px;">Cargando...</div>
+    </div>
+  </div>
+</section>
+
+<script src="app.js"></script>
+<script>
+let currentSeasonId = null;
+
+async function loadSeasons() {
+  const { ok, data } = await apiFetch('/seasons/all');
+  const container = document.getElementById('seasonSelector');
+  if (!ok || data.length === 0) {
+    container.innerHTML = '';
+    return;
+  }
+
+  let html = '<div style="display:flex;align-items:center;gap:12px;background:var(--card-bg);border:1px solid var(--card-border);border-radius:8px;padding:8px 16px;backdrop-filter:blur(10px);">';
+  html += '<span style="font-size:12px;font-family:\'Orbitron\',sans-serif;letter-spacing:1px;color:rgba(255,255,255,0.3);">TEMPORADA</span>';
+  html += '<select id="seasonSelect" onchange="onSeasonChange()" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:#fff;padding:6px 12px;font-family:\'Rajdhani\',sans-serif;font-size:14px;cursor:pointer;">';
+
+  data.forEach(s => {
+    const active = s.status === 'active';
+    const label = `${s.name}${active ? ' (ACTIVA)' : ''}${s.champion_name ? ' — Campeón: ' + s.champion_name : ''}`;
+    html += `<option value="${s.id}" ${active ? 'selected' : ''}>${label}</option>`;
+    if (currentSeasonId === null && active) currentSeasonId = s.id;
+  });
+
+  html += '</select></div>';
+  container.innerHTML = html;
+
+  if (currentSeasonId === null && data.length > 0) currentSeasonId = data[0].id;
+  loadStandings(currentSeasonId);
+}
+
+function onSeasonChange() {
+  currentSeasonId = parseInt(document.getElementById('seasonSelect').value);
+  loadStandings(currentSeasonId);
+}
+
+async function loadStandings(seasonId) {
+  const container = document.getElementById('standingsContent');
+  const url = seasonId ? `/standings?season_id=${seasonId}` : '/standings';
+  const { ok, data } = await apiFetch(url);
+  if (!ok || data.length === 0) {
+    container.innerHTML = '<div style="text-align:center;padding:60px 0;"><p style="color:rgba(255,255,255,0.4);font-size:18px;">No hay jugadores en la liga aún.</p><a href="register.html" class="cta-primary" style="display:inline-flex;margin-top:20px;">REGISTRARSE</a></div>';
+    return;
+  }
+
+  let html = `<div class="standings-table">
+    <div class="standings-header">
+      <span class="col-pos">#</span>
+      <span class="col-player">JUGADOR</span>
+      <span class="col-tier">RANGO</span>
+      <span class="col-pj">PJ</span>
+      <span class="col-w">G</span>
+      <span class="col-l">P</span>
+      <span class="col-dif">DIF</span>
+      <span class="col-pts">PTS</span>
+      <span class="col-wr">%</span>
+    </div>`;
+
+  data.forEach((p, i) => {
+    const posClass = i === 0 ? 'pos-gold' : i === 1 ? 'pos-silver' : i === 2 ? 'pos-bronze' : '';
+    const dif = (p.wins || 0) - (p.losses || 0);
+    const difClass = dif > 0 ? 'color:#22c55e;' : dif < 0 ? 'color:#ef4444;' : 'color:rgba(255,255,255,0.3);';
+    html += `<a href="player.html?id=${p.id}" class="standings-row">
+      <span class="col-pos ${posClass}">${i + 1}</span>
+      <span class="col-player">
+        <span class="player-name">${p.brawlhalla_name || p.username}</span>
+        <span class="player-user">@${p.username}</span>
+      </span>
+      <span class="col-tier">${p.tier || 'Unranked'}</span>
+      <span class="col-pj">${p.matches_played || 0}</span>
+      <span class="col-w">${p.wins || 0}</span>
+      <span class="col-l">${p.losses || 0}</span>
+      <span class="col-dif" style="${difClass}font-weight:600;">${dif > 0 ? '+' : ''}${dif}</span>
+      <span class="col-pts"><strong>${p.points || 0}</strong></span>
+      <span class="col-wr">${p.winrate || 0}%</span>
+    </a>`;
+  });
+
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+loadSeasons();
+updateNav();
+</script>
+</body>
+</html>

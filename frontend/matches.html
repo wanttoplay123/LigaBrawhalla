@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Partidas - CO'S CHAMPIONS LEAGUE</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@400;500;600;700&family=Orbitron:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav>
+  <a href="index.html" class="nav-logo">
+    <svg class="nav-logo-icon" viewBox="0 0 40 40" fill="none"><defs><linearGradient id="shieldGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#FFD700"/><stop offset="100%" style="stop-color:#7B2FBE"/></linearGradient></defs><path d="M20 2L4 8v12c0 8 6 14 16 18 10-4 16-10 16-18V8L20 2z" fill="url(#shieldGrad)" stroke="#FFD700" stroke-width="1"/><path d="M20 8L20 22M14 14L20 8L26 14" stroke="#060614" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="20" cy="6" r="2" fill="#060614"/></svg>
+    <span class="nav-logo-text"><span>CO'S</span><span>CHAMPIONS LEAGUE</span></span>
+  </a>
+  <ul class="nav-links">
+    <li><a href="index.html">INICIO</a></li>
+    <li><a href="standings.html">RANKINGS</a></li>
+    <li><a href="matches.html" class="active">PARTIDAS</a></li>
+    <li class="nav-auth-hide"><a href="register.html">REGISTRARSE</a></li>
+    <li><a href="login.html" class="nav-auth-link" data-page="login">INICIAR SESIÓN</a></li>
+    <li class="nav-auth-show nav-auth-admin" style="display:none"><a href="admin.html">PANEL ADMIN</a></li>
+    <li class="nav-auth-show" style="display:none"><a href="#" class="nav-auth-logout">👤 <span class="nav-auth-username"></span> — SALIR</a></li>
+  </ul>
+  <div class="hamburger" onclick="document.getElementById('mobileMenu').classList.toggle('open')"><span></span><span></span><span></span></div>
+</nav>
+<nav class="mobile-menu" id="mobileMenu">
+  <a href="index.html">INICIO</a>
+  <a href="standings.html">RANKINGS</a>
+  <a href="matches.html">PARTIDAS</a>
+  <a class="nav-auth-hide" href="register.html">REGISTRARSE</a>
+  <a href="login.html" class="nav-auth-link" data-page="login">INICIAR SESIÓN</a>
+  <a class="nav-auth-show nav-auth-admin" style="display:none" href="admin.html">PANEL ADMIN</a>
+  <a class="nav-auth-show nav-auth-logout" style="display:none" href="#">👤 <span class="nav-auth-username"></span> — SALIR</a>
+</nav>
+
+<section class="page-section">
+  <div style="max-width:900px; margin:0 auto;">
+    <div class="section-header">
+      <div class="section-label">CALENDARIO 2026</div>
+      <h2 class="section-title">PARTIDAS DE LA <span class="accent">LIGA</span></h2>
+    </div>
+    <div id="matchesContent">
+      <div style="text-align:center;padding:60px 0;color:rgba(255,255,255,0.4);font-size:18px;">Cargando...</div>
+    </div>
+  </div>
+</section>
+
+<script src="app.js"></script>
+<script>
+function formatDate(dateStr) {
+  if (!dateStr) return { dayName: null, day: null, month: null, hours: null, minutes: null };
+  const d = new Date(dateStr.includes(' ') ? dateStr.replace(' ', 'T') : dateStr);
+  const dayNames = ['DOMINGO','LUNES','MARTES','MIÉRCOLES','JUEVES','VIERNES','SÁBADO'];
+  return {
+    dayName: dayNames[d.getDay()],
+    day: d.getDate().toString().padStart(2, '0'),
+    month: (d.getMonth() + 1).toString().padStart(2, '0'),
+    hours: d.getHours().toString().padStart(2, '0'),
+    minutes: d.getMinutes().toString().padStart(2, '0')
+  };
+}
+
+async function loadAllMatches() {
+  const container = document.getElementById('matchesContent');
+  const { ok, data } = await apiFetch('/matches');
+
+  if (!ok || data.length === 0) {
+    container.innerHTML = '<div style="text-align:center;padding:60px 0;"><div style="font-size:48px;margin-bottom:16px;opacity:0.3;">⚔</div><div style="color:rgba(255,255,255,0.4);font-size:16px;">No hay partidas — No hay temporada activa</div></div>';
+    return;
+  }
+
+  const rounds = {};
+  data.forEach(m => {
+    const rn = m.round_number;
+    if (!rounds[rn]) rounds[rn] = { round_number: rn, matches: [] };
+    rounds[rn].matches.push(m);
+  });
+
+  const sortedRounds = Object.values(rounds).sort((a, b) => a.round_number - b.round_number);
+  let html = '';
+
+  sortedRounds.forEach((round, ri) => {
+    const firstMatch = round.matches[0];
+    const fd = formatDate(firstMatch.scheduled_date);
+    const isEven = round.round_number % 2 === 0;
+    const dayLabel = isEven ? 'DOMINGO' : 'SÁBADO';
+
+    const dayDisplay = fd.dayName ? `${fd.dayName} ${fd.day}/${fd.month}` : '—';
+
+    html += `<div style="background:var(--card-bg);border:1px solid var(--card-border);border-radius:12px;margin-bottom:16px;overflow:hidden;backdrop-filter:blur(10px);">`;
+
+    html += `<div style="display:flex;align-items:center;gap:10px;padding:14px 20px;background:rgba(255,255,255,0.03);border-bottom:1px solid var(--card-border);">
+      <span style="font-family:'Orbitron',sans-serif;font-size:13px;font-weight:500;letter-spacing:2px;color:rgba(255,255,255,0.3);min-width:36px;">J${round.round_number}</span>
+      <span style="flex:1;font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:2px;color:#fff;">${dayLabel}</span>
+      <span style="font-size:12px;font-family:'Orbitron',sans-serif;letter-spacing:1px;color:rgba(255,255,255,0.3);">${dayDisplay}</span>
+    </div>`;
+
+    round.matches.forEach(m => {
+      const isCompleted = m.status === 'completed';
+      const fd2 = formatDate(m.scheduled_date);
+      const timeStr = fd2.hours !== null ? `${fd2.hours}:${fd2.minutes}` : '—';
+      const isRescheduled = m.rescheduled == 1;
+
+      let rescheduleNote = '';
+      if (isRescheduled && fd2.dayName) {
+        rescheduleNote = `<div style="padding:2px 20px 8px;font-size:11px;color:rgba(255,215,0,0.5);font-family:'Rajdhani',sans-serif;letter-spacing:0.5px;">↳ Reprogramada para el ${fd2.dayName.toLowerCase()} ${fd2.day}/${fd2.month}</div>`;
+      }
+
+      html += `<div style="display:flex;align-items:center;padding:10px 20px;border-bottom:1px solid rgba(255,255,255,0.04);${isCompleted ? 'opacity:0.7;' : ''}">`;
+
+      html += `<div style="flex:1;display:flex;align-items:center;gap:8px;">
+        <span style="font-size:14px;font-weight:600;color:${isCompleted && m.winner_id === m.player1_id ? '#22c55e' : 'rgba(255,255,255,0.8)'};">${m.player1_name || m.player1_username}</span>
+      </div>`;
+
+      html += `<div style="display:flex;align-items:center;gap:8px;margin:0 12px;">
+        ${isCompleted ? `<span style="font-weight:700;font-size:15px;color:#a855f7;font-family:'Orbitron',sans-serif;">${m.score || '—'}</span>` : '<span style="font-weight:600;font-size:11px;color:rgba(255,255,255,0.2);font-family:\'Orbitron\',sans-serif;letter-spacing:1px;">VS</span>'}
+      </div>`;
+
+      html += `<div style="flex:1;display:flex;align-items:center;gap:8px;text-align:right;justify-content:flex-end;">
+        <span style="font-size:14px;font-weight:600;color:${isCompleted && m.winner_id === m.player2_id ? '#22c55e' : 'rgba(255,255,255,0.8)'};">${m.player2_name || m.player2_username}</span>
+      </div>`;
+
+      html += `<div style="min-width:80px;text-align:right;font-size:12px;font-family:'Orbitron',sans-serif;letter-spacing:1px;color:${isRescheduled ? 'rgba(255,215,0,0.6)' : 'rgba(255,255,255,0.3)'};">`;
+      html += isRescheduled ? `🔄 ${timeStr}` : `${timeStr}`;
+      html += `</div>`;
+
+      if (m.legend1) {
+        html += `<div style="font-size:10px;color:rgba(255,255,255,0.2);font-family:'Rajdhani',sans-serif;margin-left:8px;">${m.legend1}/${m.legend2}</div>`;
+      }
+
+      html += `</div>`;
+      if (rescheduleNote) html += rescheduleNote;
+    });
+
+    html += `</div>`;
+  });
+
+  container.innerHTML = html;
+}
+
+loadAllMatches();
+updateNav();
+</script>
+</body>
+</html>

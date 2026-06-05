@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Iniciar Sesión - CO'S CHAMPIONS LEAGUE</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@400;500;600;700&family=Orbitron:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav>
+  <a href="index.html" class="nav-logo">
+    <svg class="nav-logo-icon" viewBox="0 0 40 40" fill="none"><defs><linearGradient id="shieldGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#FFD700"/><stop offset="100%" style="stop-color:#7B2FBE"/></linearGradient></defs><path d="M20 2L4 8v12c0 8 6 14 16 18 10-4 16-10 16-18V8L20 2z" fill="url(#shieldGrad)" stroke="#FFD700" stroke-width="1"/><path d="M20 8L20 22M14 14L20 8L26 14" stroke="#060614" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="20" cy="6" r="2" fill="#060614"/></svg>
+    <span class="nav-logo-text"><span>CO'S</span><span>CHAMPIONS LEAGUE</span></span>
+  </a>
+  <ul class="nav-links">
+    <li><a href="index.html">INICIO</a></li>
+    <li><a href="standings.html">RANKINGS</a></li>
+    <li><a href="matches.html">PARTIDAS</a></li>
+    <li class="nav-auth-hide"><a href="register.html">REGISTRARSE</a></li>
+    <li><a href="login.html" class="nav-auth-link active" data-page="login">INICIAR SESIÓN</a></li>
+    <li class="nav-auth-show nav-auth-admin" style="display:none"><a href="admin.html">PANEL ADMIN</a></li>
+    <li class="nav-auth-show" style="display:none"><a href="#" class="nav-auth-logout">👤 <span class="nav-auth-username"></span> — SALIR</a></li>
+  </ul>
+  <div class="hamburger" onclick="document.getElementById('mobileMenu').classList.toggle('open')"><span></span><span></span><span></span></div>
+</nav>
+<nav class="mobile-menu" id="mobileMenu">
+  <a href="index.html">INICIO</a>
+  <a href="standings.html">RANKINGS</a>
+  <a href="matches.html">PARTIDAS</a>
+  <a class="nav-auth-hide" href="register.html">REGISTRARSE</a>
+  <a href="login.html" class="nav-auth-link" data-page="login">INICIAR SESIÓN</a>
+  <a class="nav-auth-show nav-auth-admin" style="display:none" href="admin.html">PANEL ADMIN</a>
+  <a class="nav-auth-show nav-auth-logout" style="display:none" href="#">👤 <span class="nav-auth-username"></span> — SALIR</a>
+</nav>
+
+<section class="auth-section">
+  <div class="auth-card">
+    <div class="auth-header">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#FFD700" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      <h2>INICIAR SESIÓN</h2>
+      <p>Accede a la CO'S CHAMPIONS LEAGUE</p>
+    </div>
+    <form id="loginForm">
+      <div class="auth-field">
+        <label>Usuario o Brawlhalla ID</label>
+        <input type="text" id="loginUsername" placeholder="Tu nombre de usuario o Brawlhalla ID" required>
+      </div>
+      <div class="auth-field">
+        <label>Contraseña</label>
+        <input type="password" id="loginPassword" placeholder="Tu contraseña" required>
+      </div>
+      <button type="submit" class="auth-btn">ENTRAR</button>
+    </form>
+    <p class="auth-footer">¿No tienes cuenta? <a href="register.html">Regístrate aquí</a></p>
+  </div>
+</section>
+
+<section class="page-section" style="padding-top:40px;">
+  <div style="max-width:900px;margin:0 auto;">
+    <div class="section-header">
+      <div class="section-label">TOP JUGADORES</div>
+      <h2 class="section-title">RANKINGS <span class="accent">DESTACADOS</span></h2>
+    </div>
+    <div id="loginStandings" style="background:var(--card-bg);border:1px solid var(--card-border);border-radius:12px;padding:24px;backdrop-filter:blur(10px);">
+      <div style="text-align:center;padding:40px 0;color:rgba(255,255,255,0.4);font-size:16px;">Cargando...</div>
+    </div>
+  </div>
+</section>
+
+<script src="app.js"></script>
+<script>
+if (isLoggedIn()) { window.location.href = 'index.html'; }
+
+document.getElementById('loginForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = e.target.querySelector('button');
+  btn.disabled = true;
+  btn.textContent = 'ENTRANDO...';
+
+  const username = document.getElementById('loginUsername').value.trim();
+  const password = document.getElementById('loginPassword').value;
+
+  const { ok, data } = await login(username, password);
+  btn.disabled = false;
+  btn.textContent = 'ENTRAR';
+
+  if (ok) {
+    showNotification('Bienvenido ' + data.username, 'success');
+      if (data.role === 'admin') {
+        window.location.href = 'admin.html';
+      } else {
+        window.location.href = 'index.html';
+      }
+    } else {
+      showNotification(data.error || 'Credenciales inválidas', 'error');
+    }
+  });
+
+
+async function loadLoginStandings() {
+  const container = document.getElementById('loginStandings');
+  const { ok, data } = await apiFetch('/standings');
+  if (!ok || data.length === 0) {
+    container.innerHTML = '<div style="text-align:center;padding:40px 0;color:rgba(255,255,255,0.3);">No hay jugadores aún</div>';
+    return;
+  }
+  const top5 = data.slice(0, 5);
+  const posClasses = ['pos-gold','pos-silver','pos-bronze','',''];
+  let html = '<div class="standings-table"><div class="standings-header"><span class="col-pos">#</span><span class="col-player">JUGADOR</span><span class="col-tier">RANGO</span><span class="col-pj">PJ</span><span class="col-w">G</span><span class="col-l">P</span><span class="col-dif">DIF</span><span class="col-pts">PTS</span><span class="col-wr">%</span></div>';
+  top5.forEach((p, i) => {
+    const dif = (p.wins||0) - (p.losses||0);
+    const difStyle = dif > 0 ? 'color:#22c55e;' : dif < 0 ? 'color:#ef4444;' : '';
+    html += `<a href="player.html?id=${p.id}" class="standings-row">
+      <span class="col-pos ${posClasses[i]}">${i+1}</span>
+      <span class="col-player"><span class="player-name">${p.brawlhalla_name||p.username}</span><span class="player-user">@${p.username}</span></span>
+      <span class="col-tier">${p.tier||'Unranked'}</span>
+      <span class="col-pj">${p.matches_played||0}</span>
+      <span class="col-w">${p.wins||0}</span>
+      <span class="col-l">${p.losses||0}</span>
+      <span class="col-dif" style="${difStyle}font-weight:600;">${dif > 0 ? '+' : ''}${dif}</span>
+      <span class="col-pts"><strong>${p.points||0}</strong></span>
+      <span class="col-wr">${p.winrate||0}%</span>
+    </a>`;
+  });
+  html += '</div><a href="standings.html" class="view-all-btn">VER RANKING COMPLETO →</a>';
+  container.innerHTML = html;
+}
+
+updateNav();
+loadLoginStandings();
+</script>
+</body>
+</html>
