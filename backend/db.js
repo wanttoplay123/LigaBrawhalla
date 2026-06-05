@@ -73,6 +73,7 @@ async function initDB() {
       CREATE INDEX IF NOT EXISTS idx_matches_status ON matches(status);
 
       DELETE FROM matches WHERE status = 'cancelled';
+      DELETE FROM seasons;
     `);
     console.log('PostgreSQL tables ready with indexes and cleaned up');
   } finally {
