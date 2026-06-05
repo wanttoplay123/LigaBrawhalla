@@ -1,27 +1,12 @@
 const { Pool } = require('pg');
-const dns = require('dns');
 
-let pool;
-
-async function initPool() {
-  const dbUrl = new URL(process.env.DATABASE_URL);
-  const hostname = dbUrl.hostname;
-  const addresses = await dns.promises.resolve4(hostname);
-  const ipv4 = addresses[0];
-  const fixedUrl = process.env.DATABASE_URL.replace(hostname, ipv4).replace(/\?sslmode=\w+/g, '');
-  pool = new Pool({
-    connectionString: fixedUrl,
-    ssl: { rejectUnauthorized: false }
-  });
-}
-
-function getPool() {
-  if (!pool) throw new Error('Pool not initialized');
-  return pool;
-}
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false }
+});
 
 async function initDB() {
-  const client = await getPool().connect();
+  const client = await pool.connect();
   try {
     await client.query(`
       CREATE TABLE IF NOT EXISTS users (
@@ -86,4 +71,4 @@ async function initDB() {
   }
 }
 
-module.exports = { initPool, getPool, initDB };
+module.exports = { pool, initDB };
