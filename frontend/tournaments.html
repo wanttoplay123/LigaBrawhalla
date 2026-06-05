@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Torneos - CO'S CHAMPIONS LEAGUE</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@400;500;600;700&family=Orbitron:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<style>
+/* ─── TOURNAMENT CARDS ─── */
+.tournaments-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 24px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.tournament-card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 16px;
+  padding: 0;
+  backdrop-filter: blur(12px);
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+  position: relative;
+  text-decoration: none;
+  color: #fff;
+  display: block;
+}
+
+.tournament-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--purple), var(--gold), var(--purple));
+  opacity: 0;
+  transition: opacity 0.4s;
+}
+
+.tournament-card:hover {
+  border-color: rgba(123, 47, 190, 0.5);
+  transform: translateY(-4px);
+  box-shadow: 0 12px 40px rgba(123, 47, 190, 0.2), 0 0 60px rgba(123, 47, 190, 0.08);
+}
+
+.tournament-card:hover::before {
+  opacity: 1;
+}
+
+.tournament-card-header {
+  padding: 28px 28px 20px;
+  position: relative;
+}
+
+.tournament-format-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 9px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+
+.format-3groups {
+  background: rgba(168, 85, 247, 0.15);
+  border: 1px solid rgba(168, 85, 247, 0.3);
+  color: var(--purple-light);
+}
+
+.format-elimination {
+  background: rgba(255, 215, 0, 0.1);
+  border: 1px solid rgba(255, 215, 0, 0.25);
+  color: var(--gold);
+}
+
+.tournament-card-name {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 28px;
+  letter-spacing: 3px;
+  color: #fff;
+  line-height: 1.1;
+  margin-bottom: 4px;
+}
+
+.tournament-card-date {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.35);
+  font-family: 'Rajdhani', sans-serif;
+}
+
+.tournament-card-body {
+  padding: 0 28px 24px;
+}
+
+.tournament-status-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.status-active {
+  background: rgba(34, 197, 94, 0.1);
+  border: 1px solid rgba(34, 197, 94, 0.25);
+  color: #22c55e;
+}
+
+.status-active::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 10px rgba(34, 197, 94, 0.6);
+  animation: pulse-dot 2s infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.8); }
+}
+
+.status-completed {
+  background: rgba(255, 215, 0, 0.08);
+  border: 1px solid rgba(255, 215, 0, 0.2);
+  color: var(--gold);
+}
+
+.status-completed::before {
+  content: '🏆';
+  font-size: 12px;
+}
+
+.tournament-card-footer {
+  padding: 16px 28px;
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.tournament-players-count {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.tournament-players-count svg {
+  width: 16px;
+  height: 16px;
+  opacity: 0.5;
+}
+
+.tournament-view-btn {
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--purple-light);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: color 0.2s, gap 0.2s;
+}
+
+.tournament-card:hover .tournament-view-btn {
+  color: var(--gold);
+  gap: 10px;
+}
+
+/* ─── JOIN BUTTON ─── */
+.join-tournament-btn {
+  margin-top: 16px;
+  width: 100%;
+  padding: 12px;
+  background: linear-gradient(135deg, var(--purple) 0%, #9333EA 100%);
+  border: none;
+  border-radius: 8px;
+  color: #fff;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 18px;
+  letter-spacing: 3px;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 0 20px rgba(123, 47, 190, 0.3);
+}
+
+.join-tournament-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 30px rgba(123, 47, 190, 0.5);
+}
+
+.join-tournament-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.join-tournament-btn.joined {
+  background: rgba(34, 197, 94, 0.15);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  color: #22c55e;
+  box-shadow: none;
+}
+
+.join-tournament-btn.pending-join {
+  background: rgba(255, 215, 0, 0.1);
+  border: 1px solid rgba(255, 215, 0, 0.25);
+  color: var(--gold);
+  box-shadow: none;
+}
+
+/* ─── EMPTY STATE ─── */
+.empty-state {
+  text-align: center;
+  padding: 80px 20px;
+}
+
+.empty-state-icon {
+  font-size: 64px;
+  margin-bottom: 20px;
+  opacity: 0.3;
+}
+
+.empty-state-text {
+  font-size: 18px;
+  color: rgba(255, 255, 255, 0.4);
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 600;
+}
+
+.empty-state-sub {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.25);
+  margin-top: 8px;
+}
+
+/* ─── SECTION TABS ─── */
+.section-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 32px;
+  max-width: 1200px;
+  margin-left: auto;
+  margin-right: auto;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 10px;
+  padding: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.section-tab {
+  flex: 1;
+  padding: 12px 20px;
+  text-align: center;
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.4);
+  cursor: pointer;
+  border-radius: 8px;
+  transition: all 0.3s;
+  border: 1px solid transparent;
+}
+
+.section-tab:hover {
+  color: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.section-tab.active {
+  color: var(--gold);
+  background: rgba(255, 215, 0, 0.06);
+  border-color: rgba(255, 215, 0, 0.15);
+}
+
+@media (max-width: 768px) {
+  .tournaments-grid {
+    grid-template-columns: 1fr;
+  }
+}
+</style>
+</head>
+<body>
+<nav>
+  <a href="index.html" class="nav-logo">
+    <svg class="nav-logo-icon" viewBox="0 0 40 40" fill="none"><defs><linearGradient id="shieldGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#FFD700"/><stop offset="100%" style="stop-color:#7B2FBE"/></linearGradient></defs><path d="M20 2L4 8v12c0 8 6 14 16 18 10-4 16-10 16-18V8L20 2z" fill="url(#shieldGrad)" stroke="#FFD700" stroke-width="1"/><path d="M20 8L20 22M14 14L20 8L26 14" stroke="#060614" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="20" cy="6" r="2" fill="#060614"/></svg>
+    <span class="nav-logo-text"><span>CO'S</span><span>CHAMPIONS LEAGUE</span></span>
+  </a>
+  <ul class="nav-links">
+    <li><a href="index.html">INICIO</a></li>
+    <li><a href="standings.html">RANKINGS</a></li>
+    <li><a href="matches.html">PARTIDAS</a></li>
+    <li><a href="tournaments.html" class="active">TORNEOS</a></li>
+    <li><a href="hall-of-fame.html">SALÓN DE LA FAMA</a></li>
+    <li class="nav-auth-hide"><a href="register.html">REGISTRARSE</a></li>
+    <li><a href="login.html" class="nav-auth-link" data-page="login">INICIAR SESIÓN</a></li>
+    <li class="nav-auth-show nav-auth-admin" style="display:none"><a href="admin.html">PANEL ADMIN</a></li>
+  </ul>
+  <div class="hamburger" onclick="document.getElementById('mobileMenu').classList.toggle('open')"><span></span><span></span><span></span></div>
+</nav>
+<nav class="mobile-menu" id="mobileMenu">
+  <a href="index.html">INICIO</a>
+  <a href="standings.html">RANKINGS</a>
+  <a href="matches.html">PARTIDAS</a>
+  <a href="tournaments.html">TORNEOS</a>
+  <a href="hall-of-fame.html">SALÓN DE LA FAMA</a>
+  <a class="nav-auth-hide" href="register.html">REGISTRARSE</a>
+  <a href="login.html" class="nav-auth-link" data-page="login">INICIAR SESIÓN</a>
+  <a class="nav-auth-show nav-auth-admin" style="display:none" href="admin.html">PANEL ADMIN</a>
+</nav>
+
+<section class="page-section">
+  <div style="max-width:1200px; margin:0 auto;">
+    <div class="section-header">
+      <div class="section-label">COMPETENCIA</div>
+      <h1 class="section-title">TORNEOS <span class="accent">BRAWLHALLA</span></h1>
+    </div>
+
+    <div class="section-tabs" id="tournamentTabs">
+      <div class="section-tab active" data-filter="all">TODOS</div>
+      <div class="section-tab" data-filter="active">EN CURSO</div>
+      <div class="section-tab" data-filter="completed">FINALIZADOS</div>
+    </div>
+
+    <div id="tournamentsContent">
+      <div style="text-align:center;padding:60px 0;color:rgba(255,255,255,0.4);font-size:18px;">Cargando...</div>
+    </div>
+  </div>
+</section>
+
+<script src="app.js"></script>
+<script>
+let allTournaments = [];
+let allPlayers = {};
+let currentFilter = 'all';
+
+async function loadTournaments() {
+  const container = document.getElementById('tournamentsContent');
+
+  const { ok, data } = await apiFetch('/tournaments');
+  if (!ok || !data || data.length === 0) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-state-icon">🏟️</div>
+        <div class="empty-state-text">No hay torneos disponibles</div>
+        <div class="empty-state-sub">Los torneos aparecerán aquí cuando un administrador los cree</div>
+      </div>`;
+    return;
+  }
+
+  allTournaments = data;
+
+  // Load player counts for each tournament
+  for (const t of allTournaments) {
+    try {
+      const { ok: pOk, data: pData } = await apiFetch(`/tournaments/${t.id}/players`);
+      if (pOk && pData) {
+        t._players = pData;
+        t._playerCount = pData.filter(p => p.status === 'approved').length;
+        t._pendingCount = pData.filter(p => p.status === 'pending').length;
+      } else {
+        t._players = [];
+        t._playerCount = 0;
+        t._pendingCount = 0;
+      }
+    } catch {
+      t._players = [];
+      t._playerCount = 0;
+      t._pendingCount = 0;
+    }
+  }
+
+  renderTournaments();
+}
+
+function renderTournaments() {
+  const container = document.getElementById('tournamentsContent');
+  let filtered = allTournaments;
+
+  if (currentFilter === 'active') {
+    filtered = allTournaments.filter(t => t.status === 'active');
+  } else if (currentFilter === 'completed') {
+    filtered = allTournaments.filter(t => t.status === 'completed');
+  }
+
+  if (filtered.length === 0) {
+    const msg = currentFilter === 'active'
+      ? 'No hay torneos en curso'
+      : currentFilter === 'completed'
+      ? 'No hay torneos finalizados'
+      : 'No hay torneos disponibles';
+    container.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-state-icon">🏟️</div>
+        <div class="empty-state-text">${msg}</div>
+      </div>`;
+    return;
+  }
+
+  let html = '<div class="tournaments-grid">';
+
+  for (const t of filtered) {
+    const isActive = t.status === 'active';
+    const formatLabel = t.format === 'custom_3groups' ? '3 GRUPOS' : 'ELIMINACIÓN';
+    const formatClass = t.format === 'custom_3groups' ? 'format-3groups' : 'format-elimination';
+    const statusClass = isActive ? 'status-active' : 'status-completed';
+    const statusLabel = isActive ? 'EN CURSO' : 'FINALIZADO';
+
+    const date = t.created_at ? new Date(t.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' }) : '';
+
+    // Check if current user is registered
+    const loggedIn = isLoggedIn();
+    let joinHtml = '';
+    if (loggedIn && isActive) {
+      const myBhId = getBrawlhallaId();
+      const myPlayer = t._players?.find(p => String(p.brawlhalla_id || '') === String(myBhId || ''));
+      if (!myPlayer) {
+        joinHtml = `<button class="join-tournament-btn" onclick="event.preventDefault(); event.stopPropagation(); joinTournament(${t.id}, this)">UNIRSE AL TORNEO</button>`;
+      } else if (myPlayer.status === 'pending') {
+        joinHtml = `<button class="join-tournament-btn pending-join" disabled>⏳ SOLICITUD PENDIENTE</button>`;
+      } else if (myPlayer.status === 'approved') {
+        joinHtml = `<button class="join-tournament-btn joined" disabled>✓ INSCRITO</button>`;
+      }
+    }
+
+    html += `
+    <a href="tournament-details.html?id=${t.id}" class="tournament-card" id="tournament-${t.id}">
+      <div class="tournament-card-header">
+        <div class="tournament-format-badge ${formatClass}">
+          ${t.format === 'custom_3groups'
+            ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="5" r="3"/><circle cx="5" cy="19" r="3"/><circle cx="19" cy="19" r="3"/></svg>'
+            : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>'}
+          ${formatLabel}
+        </div>
+        <div class="tournament-card-name">${t.name}</div>
+        <div class="tournament-card-date">${date}</div>
+      </div>
+      <div class="tournament-card-body">
+        <div class="tournament-status-indicator ${statusClass}">${statusLabel}</div>
+        ${joinHtml}
+      </div>
+      <div class="tournament-card-footer">
+        <div class="tournament-players-count">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          ${t._playerCount || 0} jugadores${t._pendingCount > 0 ? ` · ${t._pendingCount} pendientes` : ''}
+        </div>
+        <div class="tournament-view-btn">
+          VER DETALLES
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        </div>
+      </div>
+    </a>`;
+  }
+
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+async function joinTournament(id, btn) {
+  btn.disabled = true;
+  btn.textContent = 'ENVIANDO...';
+
+  const { ok, data } = await apiFetch(`/tournaments/${id}/join`, { method: 'POST' });
+  if (ok) {
+    showNotification('Solicitud enviada. Un administrador debe aprobar tu participación.', 'success');
+    btn.className = 'join-tournament-btn pending-join';
+    btn.textContent = '⏳ SOLICITUD PENDIENTE';
+  } else {
+    showNotification(data.error || 'Error al unirse', 'error');
+    btn.disabled = false;
+    btn.textContent = 'UNIRSE AL TORNEO';
+  }
+}
+
+// Tab switching
+document.querySelectorAll('.section-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.section-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    currentFilter = tab.dataset.filter;
+    renderTournaments();
+  });
+});
+
+updateNav();
+loadTournaments();
+</script>
+</body>
+</html>

@@ -1131,6 +1131,899 @@ app.get('/api/standings', async (req, res) => {
   }
 });
 
+// ─── TOURNAMENT HELPER FUNCTIONS ───
+
+function getRoundRobinPairs(players) {
+  let list = [...players];
+  if (list.length % 2 !== 0) {
+    list.push(null);
+  }
+  const n = list.length;
+  const rounds = [];
+  for (let r = 0; r < n - 1; r++) {
+    const roundPairs = [];
+    for (let i = 0; i < n / 2; i++) {
+      const p1 = list[i];
+      const p2 = list[n - 1 - i];
+      if (p1 !== null && p2 !== null) {
+        roundPairs.push([p1, p2]);
+      }
+    }
+    rounds.push(roundPairs);
+    // Rotate
+    list = [list[0], list[n - 1], ...list.slice(1, n - 1)];
+  }
+  return rounds;
+}
+
+function getRoundName(roundNumber, totalRounds) {
+  if (roundNumber === totalRounds) return 'Gran Final';
+  if (roundNumber === totalRounds - 1) return 'Semifinales';
+  if (roundNumber === totalRounds - 2) return 'Cuartos de Final';
+  if (roundNumber === totalRounds - 3) return 'Octavos de Final';
+  return `Ronda ${roundNumber}`;
+}
+
+async function propagateTournamentMatchWinner(client, matchId, winnerId) {
+  const matchRes = await client.query(
+    'SELECT m.id, m.round_id, r.round_number, r.tournament_id FROM tournament_matches m JOIN tournament_rounds r ON r.id = m.round_id WHERE m.id = $1',
+    [matchId]
+  );
+  if (matchRes.rows.length === 0) return;
+  const currentMatch = matchRes.rows[0];
+  
+  const roundMatchesRes = await client.query(
+    'SELECT id FROM tournament_matches WHERE round_id = $1 ORDER BY id ASC',
+    [currentMatch.round_id]
+  );
+  const matchIndex = roundMatchesRes.rows.findIndex(m => m.id === parseInt(matchId));
+  if (matchIndex === -1) return;
+
+  const nextRoundNumber = currentMatch.round_number + 1;
+  const nextRoundRes = await client.query(
+    'SELECT id FROM tournament_rounds WHERE tournament_id = $1 AND round_number = $2',
+    [currentMatch.tournament_id, nextRoundNumber]
+  );
+  if (nextRoundRes.rows.length === 0) {
+    await client.query(
+      "UPDATE tournaments SET status = 'completed' WHERE id = $1",
+      [currentMatch.tournament_id]
+    );
+    return;
+  }
+  const nextRoundId = nextRoundRes.rows[0].id;
+
+  const nextRoundMatchesRes = await client.query(
+    'SELECT id, player1_id, player2_id FROM tournament_matches WHERE round_id = $1 ORDER BY id ASC',
+    [nextRoundId]
+  );
+  const targetMatchIndex = Math.floor(matchIndex / 2);
+  if (targetMatchIndex >= nextRoundMatchesRes.rows.length) return;
+  
+  const targetMatch = nextRoundMatchesRes.rows[targetMatchIndex];
+  const isPlayer1 = (matchIndex % 2 === 0);
+
+  if (isPlayer1) {
+    await client.query(
+      'UPDATE tournament_matches SET player1_id = $1 WHERE id = $2',
+      [winnerId, targetMatch.id]
+    );
+  } else {
+    await client.query(
+      'UPDATE tournament_matches SET player2_id = $1 WHERE id = $2',
+      [winnerId, targetMatch.id]
+    );
+  }
+}
+
+// ─── TOURNAMENT ENDPOINTS ───
+
+app.get('/api/tournaments', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM tournaments ORDER BY created_at DESC');
+    res.json(result.rows);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.get('/api/tournaments/:id', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM tournaments WHERE id = $1', [req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Tournament not found' });
+    res.json(result.rows[0]);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.post('/api/tournaments', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { name, format } = req.body;
+    if (!name || !format) return res.status(400).json({ error: 'Name and format required' });
+    if (!['custom_3groups', 'single_elimination'].includes(format)) {
+      return res.status(400).json({ error: 'Invalid format' });
+    }
+    const result = await pool.query(
+      "INSERT INTO tournaments (name, format, status) VALUES ($1, $2, 'active') RETURNING *",
+      [name, format]
+    );
+    res.json(result.rows[0]);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.post('/api/tournaments/:id/join', authMiddleware, async (req, res) => {
+  try {
+    const tournament = await pool.query('SELECT * FROM tournaments WHERE id = $1', [req.params.id]);
+    if (tournament.rows.length === 0) return res.status(404).json({ error: 'Tournament not found' });
+    if (tournament.rows[0].status !== 'active') return res.status(400).json({ error: 'Tournament is not active' });
+
+    const player = await pool.query('SELECT id, status FROM players WHERE user_id = $1', [req.user.id]);
+    if (player.rows.length === 0) return res.status(404).json({ error: 'Player profile not found' });
+    if (player.rows[0].status !== 'approved') return res.status(403).json({ error: 'Player account is not approved by admin' });
+
+    const playerId = player.rows[0].id;
+
+    const existing = await pool.query(
+      'SELECT id FROM tournament_players WHERE tournament_id = $1 AND player_id = $2',
+      [req.params.id, playerId]
+    );
+    if (existing.rows.length > 0) return res.status(400).json({ error: 'You are already registered for this tournament' });
+
+    const countRes = await pool.query('SELECT COUNT(*) FROM tournament_players WHERE tournament_id = $1', [req.params.id]);
+    const seed = parseInt(countRes.rows[0].count) + 1;
+
+    const joinResult = await pool.query(
+      `INSERT INTO tournament_players (tournament_id, player_id, status, seed)
+       VALUES ($1, $2, 'pending', $3) RETURNING *`,
+      [req.params.id, playerId, seed]
+    );
+    res.json({ message: 'Request to join sent', registration: joinResult.rows[0] });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.get('/api/tournaments/:id/players', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT tp.id, tp.tournament_id, tp.player_id, tp.group_name, tp.status, tp.seed, tp.created_at,
+             p.brawlhalla_name, p.tier, p.rating, u.username
+      FROM tournament_players tp
+      JOIN players p ON p.id = tp.player_id
+      JOIN users u ON u.id = p.user_id
+      WHERE tp.tournament_id = $1
+      ORDER BY tp.seed ASC, tp.id ASC
+    `, [req.params.id]);
+    res.json(result.rows);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.patch('/api/tournaments/:id/players/:playerId/verify', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { action } = req.body;
+    if (!['approved', 'rejected'].includes(action)) return res.status(400).json({ error: 'Invalid action' });
+
+    if (action === 'approved') {
+      await pool.query(
+        "UPDATE tournament_players SET status = 'approved' WHERE tournament_id = $1 AND player_id = $2",
+        [req.params.id, req.params.playerId]
+      );
+      res.json({ message: 'Player approved for tournament' });
+    } else {
+      await pool.query(
+        "DELETE FROM tournament_players WHERE tournament_id = $1 AND player_id = $2",
+        [req.params.id, req.params.playerId]
+      );
+      res.json({ message: 'Player tournament request removed' });
+    }
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.post('/api/tournaments/:id/start', authMiddleware, adminMiddleware, async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const tournamentId = req.params.id;
+    await client.query('BEGIN');
+
+    const tournament = await client.query('SELECT * FROM tournaments WHERE id = $1', [tournamentId]);
+    if (tournament.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Tournament not found' });
+    }
+
+    const { format } = tournament.rows[0];
+
+    const roundCheck = await client.query('SELECT id FROM tournament_rounds WHERE tournament_id = $1', [tournamentId]);
+    if (roundCheck.rows.length > 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Tournament already started' });
+    }
+
+    const approvedPlayers = await client.query(
+      "SELECT player_id FROM tournament_players WHERE tournament_id = $1 AND status = 'approved' ORDER BY seed ASC",
+      [tournamentId]
+    );
+
+    if (format === 'custom_3groups') {
+      const N = approvedPlayers.rows.length;
+      if (N !== 15) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'The 3-group format requires exactly 15 approved players' });
+      }
+
+      // Shuffle group assignments
+      const shuffled = [...approvedPlayers.rows].sort(() => Math.random() - 0.5);
+
+      for (let i = 0; i < 15; i++) {
+        const grp = i < 5 ? 'A' : (i < 10 ? 'B' : 'C');
+        await client.query(
+          'UPDATE tournament_players SET group_name = $1 WHERE tournament_id = $2 AND player_id = $3',
+          [grp, tournamentId, shuffled[i].player_id]
+        );
+      }
+
+      // Create group stage rounds (1 to 5)
+      const rounds = [];
+      for (let r = 1; r <= 5; r++) {
+        const roundRes = await client.query(
+          'INSERT INTO tournament_rounds (tournament_id, round_number, round_name, status) VALUES ($1, $2, $3, $4) RETURNING id',
+          [tournamentId, r, `Grupo - Fecha ${r}`, r === 1 ? 'active' : 'pending']
+        );
+        rounds.push(roundRes.rows[0].id);
+      }
+
+      const groupAPlayers = shuffled.slice(0, 5).map(p => p.player_id);
+      const groupBPlayers = shuffled.slice(5, 10).map(p => p.player_id);
+      const groupCPlayers = shuffled.slice(10, 15).map(p => p.player_id);
+
+      const roundsA = getRoundRobinPairs(groupAPlayers);
+      const roundsB = getRoundRobinPairs(groupBPlayers);
+      const roundsC = getRoundRobinPairs(groupCPlayers);
+
+      for (let r = 1; r <= 5; r++) {
+        const roundId = rounds[r - 1];
+        
+        // Group A matches
+        for (const pair of roundsA[r - 1] || []) {
+          await client.query(
+            "INSERT INTO tournament_matches (round_id, player1_id, player2_id, status) VALUES ($1, $2, $3, 'pending')",
+            [roundId, pair[0], pair[1]]
+          );
+        }
+        // Group B matches
+        for (const pair of roundsB[r - 1] || []) {
+          await client.query(
+            "INSERT INTO tournament_matches (round_id, player1_id, player2_id, status) VALUES ($1, $2, $3, 'pending')",
+            [roundId, pair[0], pair[1]]
+          );
+        }
+        // Group C matches
+        for (const pair of roundsC[r - 1] || []) {
+          await client.query(
+            "INSERT INTO tournament_matches (round_id, player1_id, player2_id, status) VALUES ($1, $2, $3, 'pending')",
+            [roundId, pair[0], pair[1]]
+          );
+        }
+      }
+
+    } else if (format === 'single_elimination') {
+      const N = approvedPlayers.rows.length;
+      if (N < 2) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'At least 2 approved players are required for single elimination' });
+      }
+
+      let M = 2;
+      while (M < N) M *= 2;
+      const numRounds = Math.log2(M);
+
+      const rounds = [];
+      for (let r = 1; r <= numRounds; r++) {
+        const roundName = getRoundName(r, numRounds);
+        const roundStatus = (r === 1) ? 'active' : 'pending';
+        const roundRes = await client.query(
+          'INSERT INTO tournament_rounds (tournament_id, round_number, round_name, status) VALUES ($1, $2, $3, $4) RETURNING id',
+          [tournamentId, r, roundName, roundStatus]
+        );
+        rounds.push({ id: roundRes.rows[0].id, round_number: r });
+      }
+
+      const r1Id = rounds[0].id;
+      const r1Matches = [];
+
+      for (let i = 0; i < M / 2; i++) {
+        const p1 = approvedPlayers.rows[2 * i] ? approvedPlayers.rows[2 * i].player_id : null;
+        const p2 = approvedPlayers.rows[2 * i + 1] ? approvedPlayers.rows[2 * i + 1].player_id : null;
+
+        if (p1 !== null && p2 !== null) {
+          const matchRes = await client.query(
+            "INSERT INTO tournament_matches (round_id, player1_id, player2_id, status) VALUES ($1, $2, $3, 'pending') RETURNING id",
+            [r1Id, p1, p2]
+          );
+          r1Matches.push({ id: matchRes.rows[0].id, hasBye: false });
+        } else if (p1 !== null && p2 === null) {
+          const pad = n => n.toString().padStart(2, '0');
+          const nd = new Date();
+          const playedDateStr = `${nd.getFullYear()}-${pad(nd.getMonth()+1)}-${pad(nd.getDate())} ${pad(nd.getHours())}:${pad(nd.getMinutes())}`;
+          const matchRes = await client.query(
+            "INSERT INTO tournament_matches (round_id, player1_id, player2_id, winner_id, score, status, played_date) VALUES ($1, $2, NULL, $2, 'W.O.', 'completed', $3) RETURNING id",
+            [r1Id, p1, playedDateStr]
+          );
+          r1Matches.push({ id: matchRes.rows[0].id, hasBye: true, winnerId: p1 });
+        } else {
+          const matchRes = await client.query(
+            "INSERT INTO tournament_matches (round_id, player1_id, player2_id, status) VALUES ($1, NULL, NULL, 'pending') RETURNING id",
+            [r1Id]
+          );
+          r1Matches.push({ id: matchRes.rows[0].id, hasBye: false });
+        }
+      }
+
+      for (let r = 2; r <= numRounds; r++) {
+        const roundId = rounds[r - 1].id;
+        const matchesCount = M / (2 ** r);
+        for (let i = 0; i < matchesCount; i++) {
+          await client.query(
+            "INSERT INTO tournament_matches (round_id, player1_id, player2_id, status) VALUES ($1, NULL, NULL, 'pending')",
+            [roundId]
+          );
+        }
+      }
+
+      for (const m of r1Matches) {
+        if (m.hasBye) {
+          await propagateTournamentMatchWinner(client, m.id, m.winnerId);
+        }
+      }
+    }
+
+    await client.query('COMMIT');
+    res.json({ message: 'Tournament started and fixtures generated' });
+  } catch (e) {
+    await client.query('ROLLBACK');
+    console.error(e);
+    res.status(500).json({ error: 'Server error' });
+  } finally {
+    client.release();
+  }
+});
+
+app.get('/api/tournaments/:id/matches', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT tm.id, tm.round_id, tm.player1_id, tm.player2_id, tm.winner_id,
+             tm.score, tm.legend1, tm.legend2, tm.status, tm.played_date, tm.scheduled_date,
+             tm.p1_damage, tm.p2_damage, tm.p1_kos, tm.p2_kos,
+             tr.round_number, tr.round_name,
+             p1.brawlhalla_name AS player1_name, p2.brawlhalla_name AS player2_name,
+             tp1.group_name AS player1_group, tp2.group_name AS player2_group
+      FROM tournament_matches tm
+      JOIN tournament_rounds tr ON tr.id = tm.round_id
+      LEFT JOIN players p1 ON p1.id = tm.player1_id
+      LEFT JOIN players p2 ON p2.id = tm.player2_id
+      LEFT JOIN tournament_players tp1 ON (tp1.tournament_id = tr.tournament_id AND tp1.player_id = tm.player1_id)
+      LEFT JOIN tournament_players tp2 ON (tp2.tournament_id = tr.tournament_id AND tp2.player_id = tm.player2_id)
+      WHERE tr.tournament_id = $1
+      ORDER BY tr.round_number ASC, tm.id ASC
+    `, [req.params.id]);
+    res.json(result.rows);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.patch('/api/tournaments/:id/matches/:matchId/result', authMiddleware, adminMiddleware, async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { winner_id, legend1, legend2, score, p1_damage, p2_damage, p1_kos, p2_kos } = req.body;
+    if (!winner_id) return res.status(400).json({ error: 'winner_id is required' });
+
+    await client.query('BEGIN');
+
+    const matchRes = await client.query(
+      'SELECT tm.*, tr.tournament_id, tr.round_number FROM tournament_matches tm JOIN tournament_rounds tr ON tr.id = tm.round_id WHERE tm.id = $1',
+      [req.params.matchId]
+    );
+    if (matchRes.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Match not found' });
+    }
+    const match = matchRes.rows[0];
+
+    if (winner_id !== match.player1_id && winner_id !== match.player2_id) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Winner must be one of the players' });
+    }
+
+    const pad = n => n.toString().padStart(2, '0');
+    const nd = new Date();
+    const playedDateStr = `${nd.getFullYear()}-${pad(nd.getMonth()+1)}-${pad(nd.getDate())} ${pad(nd.getHours())}:${pad(nd.getMinutes())}`;
+
+    await client.query(
+      `UPDATE tournament_matches
+       SET winner_id = $1, legend1 = $2, legend2 = $3, score = $4, status = 'completed', played_date = $5,
+           p1_damage = $6, p2_damage = $7, p1_kos = $8, p2_kos = $9
+       WHERE id = $10`,
+      [winner_id, legend1 || null, legend2 || null, score || null, playedDateStr,
+       p1_damage || 0, p2_damage || 0, p1_kos || 0, p2_kos || 0, req.params.matchId]
+    );
+
+    const tournamentRes = await client.query('SELECT format FROM tournaments WHERE id = $1', [match.tournament_id]);
+    const format = tournamentRes.rows[0].format;
+
+    const roundRes = await client.query('SELECT round_name FROM tournament_rounds WHERE id = $1', [match.round_id]);
+    const roundName = roundRes.rows[0].round_name;
+
+    const isBracket = (format === 'single_elimination' || roundName.includes('Repechaje') || roundName.includes('Playoffs') || roundName.includes('Final'));
+
+    if (isBracket) {
+      await propagateTournamentMatchWinner(client, req.params.matchId, winner_id);
+    }
+
+    const pendingMatches = await client.query(
+      "SELECT COUNT(*) FROM tournament_matches WHERE round_id = $1 AND status = 'pending'",
+      [match.round_id]
+    );
+    if (parseInt(pendingMatches.rows[0].count) === 0) {
+      await client.query(
+        "UPDATE tournament_rounds SET status = 'completed' WHERE id = $1",
+        [match.round_id]
+      );
+
+      if (format === 'single_elimination') {
+        const nextRoundNumber = match.round_number + 1;
+        await client.query(
+          "UPDATE tournament_rounds SET status = 'active' WHERE tournament_id = $1 AND round_number = $2",
+          [match.tournament_id, nextRoundNumber]
+        );
+      }
+    }
+
+    await client.query('COMMIT');
+    res.json({ message: 'Tournament match result recorded' });
+  } catch (e) {
+    await client.query('ROLLBACK');
+    console.error(e);
+    res.status(500).json({ error: 'Server error' });
+  } finally {
+    client.release();
+  }
+});
+
+app.get('/api/tournaments/:id/standings', async (req, res) => {
+  try {
+    const tournamentId = req.params.id;
+    const playersRes = await pool.query(`
+      SELECT tp.player_id, tp.group_name, tp.seed, p.brawlhalla_name, p.tier, u.username
+      FROM tournament_players tp
+      JOIN players p ON p.id = tp.player_id
+      JOIN users u ON u.id = p.user_id
+      WHERE tp.tournament_id = $1 AND tp.status = 'approved'
+    `, [tournamentId]);
+
+    const matchesRes = await pool.query(`
+      SELECT tm.player1_id, tm.player2_id, tm.winner_id,
+             tm.p1_damage, tm.p2_damage, tm.p1_kos, tm.p2_kos
+      FROM tournament_matches tm
+      JOIN tournament_rounds tr ON tr.id = tm.round_id
+      WHERE tr.tournament_id = $1 AND tr.round_number <= 5 AND tr.round_name LIKE 'Grupo%' AND tm.status = 'completed'
+    `, [tournamentId]);
+
+    const stats = {};
+    for (const p of playersRes.rows) {
+      stats[p.player_id] = {
+        player_id: p.player_id,
+        brawlhalla_name: p.brawlhalla_name,
+        username: p.username,
+        tier: p.tier,
+        group_name: p.group_name,
+        seed: p.seed,
+        matches_played: 0,
+        wins: 0,
+        losses: 0,
+        points: 0,
+        damage_dealt: 0,
+        damage_taken: 0,
+        kos: 0
+      };
+    }
+
+    for (const m of matchesRes.rows) {
+      const p1 = m.player1_id;
+      const p2 = m.player2_id;
+      if (stats[p1]) {
+        stats[p1].matches_played++;
+        stats[p1].damage_dealt += (m.p1_damage || 0);
+        stats[p1].damage_taken += (m.p2_damage || 0);
+        stats[p1].kos += (m.p1_kos || 0);
+        if (m.winner_id === p1) {
+          stats[p1].wins++;
+          stats[p1].points += 3;
+        } else if (m.winner_id === p2) {
+          stats[p1].losses++;
+        }
+      }
+      if (stats[p2]) {
+        stats[p2].matches_played++;
+        stats[p2].damage_dealt += (m.p2_damage || 0);
+        stats[p2].damage_taken += (m.p1_damage || 0);
+        stats[p2].kos += (m.p2_kos || 0);
+        if (m.winner_id === p2) {
+          stats[p2].wins++;
+          stats[p2].points += 3;
+        } else if (m.winner_id === p1) {
+          stats[p2].losses++;
+        }
+      }
+    }
+
+    const list = Object.values(stats);
+    const groups = { A: [], B: [], C: [] };
+    for (const item of list) {
+      if (groups[item.group_name]) {
+        groups[item.group_name].push(item);
+      }
+    }
+
+    const sortFn = (a, b) => {
+      if (b.points !== a.points) return b.points - a.points;
+      if (b.kos !== a.kos) return b.kos - a.kos;
+      const diffB = b.damage_dealt - b.damage_taken;
+      const diffA = a.damage_dealt - a.damage_taken;
+      if (diffB !== diffA) return diffB - diffA;
+      if (b.damage_dealt !== a.damage_dealt) return b.damage_dealt - a.damage_dealt;
+      return a.seed - b.seed;
+    };
+
+    groups.A.sort(sortFn);
+    groups.B.sort(sortFn);
+    groups.C.sort(sortFn);
+
+    res.json(groups);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.post('/api/tournaments/:id/generate-repechaje', authMiddleware, adminMiddleware, async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const tournamentId = req.params.id;
+    await client.query('BEGIN');
+
+    const tournament = await client.query('SELECT format FROM tournaments WHERE id = $1', [tournamentId]);
+    if (tournament.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Tournament not found' });
+    }
+    if (tournament.rows[0].format !== 'custom_3groups') {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Repechaje only available for custom_3groups format' });
+    }
+
+    const roundCheck = await client.query(
+      "SELECT id FROM tournament_rounds WHERE tournament_id = $1 AND round_name = 'Repechaje'",
+      [tournamentId]
+    );
+    if (roundCheck.rows.length > 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Repechaje already generated' });
+    }
+
+    const pendingCount = await client.query(`
+      SELECT COUNT(*)
+      FROM tournament_matches tm
+      JOIN tournament_rounds tr ON tr.id = tm.round_id
+      WHERE tr.tournament_id = $1 AND tr.round_number <= 5 AND tm.status = 'pending'
+    `, [tournamentId]);
+
+    if (parseInt(pendingCount.rows[0].count) > 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Not all group phase matches are completed yet' });
+    }
+
+    const playersRes = await client.query(`
+      SELECT tp.player_id, tp.group_name, tp.seed, p.brawlhalla_name, p.tier, u.username
+      FROM tournament_players tp
+      JOIN players p ON p.id = tp.player_id
+      JOIN users u ON u.id = p.user_id
+      WHERE tp.tournament_id = $1 AND tp.status = 'approved'
+    `, [tournamentId]);
+
+    const matchesRes = await client.query(`
+      SELECT tm.player1_id, tm.player2_id, tm.winner_id,
+             tm.p1_damage, tm.p2_damage, tm.p1_kos, tm.p2_kos
+      FROM tournament_matches tm
+      JOIN tournament_rounds tr ON tr.id = tm.round_id
+      WHERE tr.tournament_id = $1 AND tr.round_number <= 5 AND tr.round_name LIKE 'Grupo%' AND tm.status = 'completed'
+    `, [tournamentId]);
+
+    const stats = {};
+    for (const p of playersRes.rows) {
+      stats[p.player_id] = {
+        player_id: p.player_id,
+        group_name: p.group_name,
+        seed: p.seed,
+        points: 0,
+        kos: 0,
+        damage_dealt: 0,
+        damage_taken: 0
+      };
+    }
+
+    for (const m of matchesRes.rows) {
+      const p1 = m.player1_id;
+      const p2 = m.player2_id;
+      if (stats[p1]) {
+        stats[p1].damage_dealt += (m.p1_damage || 0);
+        stats[p1].damage_taken += (m.p2_damage || 0);
+        stats[p1].kos += (m.p1_kos || 0);
+        if (m.winner_id === p1) stats[p1].points += 3;
+      }
+      if (stats[p2]) {
+        stats[p2].damage_dealt += (m.p2_damage || 0);
+        stats[p2].damage_taken += (m.p1_damage || 0);
+        stats[p2].kos += (m.p2_kos || 0);
+        if (m.winner_id === p2) stats[p2].points += 3;
+      }
+    }
+
+    const groups = { A: [], B: [], C: [] };
+    for (const item of Object.values(stats)) {
+      if (groups[item.group_name]) groups[item.group_name].push(item);
+    }
+
+    const sortFn = (a, b) => {
+      if (b.points !== a.points) return b.points - a.points;
+      if (b.kos !== a.kos) return b.kos - a.kos;
+      const diffB = b.damage_dealt - b.damage_taken;
+      const diffA = a.damage_dealt - a.damage_taken;
+      if (diffB !== diffA) return diffB - diffA;
+      if (b.damage_dealt !== a.damage_dealt) return b.damage_dealt - a.damage_dealt;
+      return a.seed - b.seed;
+    };
+
+    groups.A.sort(sortFn);
+    groups.B.sort(sortFn);
+    groups.C.sort(sortFn);
+
+    const a3 = groups.A[2].player_id;
+    const a4 = groups.A[3].player_id;
+    const b3 = groups.B[2].player_id;
+    const b4 = groups.B[3].player_id;
+    const c3 = groups.C[2].player_id;
+    const c4 = groups.C[3].player_id;
+
+    const roundRes = await client.query(
+      "INSERT INTO tournament_rounds (tournament_id, round_number, round_name, status) VALUES ($1, 6, 'Repechaje', 'active') RETURNING id",
+      [tournamentId]
+    );
+    const roundId = roundRes.rows[0].id;
+
+    await client.query(
+      "INSERT INTO tournament_matches (round_id, player1_id, player2_id, status) VALUES ($1, $2, $3, 'pending')",
+      [roundId, a3, b4]
+    );
+    await client.query(
+      "INSERT INTO tournament_matches (round_id, player1_id, player2_id, status) VALUES ($1, $2, $3, 'pending')",
+      [roundId, b3, c4]
+    );
+    await client.query(
+      "INSERT INTO tournament_matches (round_id, player1_id, player2_id, status) VALUES ($1, $2, $3, 'pending')",
+      [roundId, c3, a4]
+    );
+
+    await client.query('COMMIT');
+    res.json({ message: 'Repechaje bracket generated successfully' });
+  } catch (e) {
+    await client.query('ROLLBACK');
+    console.error(e);
+    res.status(500).json({ error: 'Server error' });
+  } finally {
+    client.release();
+  }
+});
+
+app.post('/api/tournaments/:id/generate-playoffs', authMiddleware, adminMiddleware, async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const tournamentId = req.params.id;
+    await client.query('BEGIN');
+
+    const tournament = await client.query('SELECT format FROM tournaments WHERE id = $1', [tournamentId]);
+    if (tournament.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Tournament not found' });
+    }
+    if (tournament.rows[0].format !== 'custom_3groups') {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Playoffs only available for custom_3groups format' });
+    }
+
+    const roundCheck = await client.query(
+      "SELECT id FROM tournament_rounds WHERE tournament_id = $1 AND round_name LIKE 'Playoffs%'",
+      [tournamentId]
+    );
+    if (roundCheck.rows.length > 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Playoffs already generated' });
+    }
+
+    const repechajeRoundRes = await client.query(
+      "SELECT id, status FROM tournament_rounds WHERE tournament_id = $1 AND round_name = 'Repechaje'",
+      [tournamentId]
+    );
+    if (repechajeRoundRes.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Repechaje has not been generated yet' });
+    }
+    if (repechajeRoundRes.rows[0].status !== 'completed') {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Repechaje matches are not completed yet' });
+    }
+
+    const repMatchesRes = await client.query(
+      "SELECT id, player1_id, player2_id, winner_id FROM tournament_matches WHERE round_id = $1",
+      [repechajeRoundRes.rows[0].id]
+    );
+    if (repMatchesRes.rows.length < 3) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Repechaje match data is incomplete' });
+    }
+
+    const losers = repMatchesRes.rows.map(m => {
+      return m.winner_id === m.player1_id ? m.player2_id : m.player1_id;
+    });
+
+    const playersRes = await client.query(`
+      SELECT tp.player_id, tp.group_name, tp.seed, p.brawlhalla_name, p.tier, u.username
+      FROM tournament_players tp
+      JOIN players p ON p.id = tp.player_id
+      JOIN users u ON u.id = p.user_id
+      WHERE tp.tournament_id = $1 AND tp.status = 'approved'
+    `, [tournamentId]);
+
+    const matchesRes = await client.query(`
+      SELECT tm.player1_id, tm.player2_id, tm.winner_id,
+             tm.p1_damage, tm.p2_damage, tm.p1_kos, tm.p2_kos
+      FROM tournament_matches tm
+      JOIN tournament_rounds tr ON tr.id = tm.round_id
+      WHERE tr.tournament_id = $1 AND tr.round_number <= 5 AND tr.round_name LIKE 'Grupo%' AND tm.status = 'completed'
+    `, [tournamentId]);
+
+    const stats = {};
+    for (const p of playersRes.rows) {
+      stats[p.player_id] = {
+        player_id: p.player_id,
+        group_name: p.group_name,
+        seed: p.seed,
+        points: 0,
+        kos: 0,
+        damage_dealt: 0,
+        damage_taken: 0
+      };
+    }
+
+    for (const m of matchesRes.rows) {
+      const p1 = m.player1_id;
+      const p2 = m.player2_id;
+      if (stats[p1]) {
+        stats[p1].damage_dealt += (m.p1_damage || 0);
+        stats[p1].damage_taken += (m.p2_damage || 0);
+        stats[p1].kos += (m.p1_kos || 0);
+        if (m.winner_id === p1) stats[p1].points += 3;
+      }
+      if (stats[p2]) {
+        stats[p2].damage_dealt += (m.p2_damage || 0);
+        stats[p2].damage_taken += (m.p1_damage || 0);
+        stats[p2].kos += (m.p2_kos || 0);
+        if (m.winner_id === p2) stats[p2].points += 3;
+      }
+    }
+
+    const groups = { A: [], B: [], C: [] };
+    for (const item of Object.values(stats)) {
+      if (groups[item.group_name]) groups[item.group_name].push(item);
+    }
+
+    const sortFn = (a, b) => {
+      if (b.points !== a.points) return b.points - a.points;
+      if (b.kos !== a.kos) return b.kos - a.kos;
+      const diffB = b.damage_dealt - b.damage_taken;
+      const diffA = a.damage_dealt - a.damage_taken;
+      if (diffB !== diffA) return diffB - diffA;
+      if (b.damage_dealt !== a.damage_dealt) return b.damage_dealt - a.damage_dealt;
+      return a.seed - b.seed;
+    };
+
+    groups.A.sort(sortFn);
+    groups.B.sort(sortFn);
+    groups.C.sort(sortFn);
+
+    const a5 = groups.A[4].player_id;
+    const b5 = groups.B[4].player_id;
+    const c5 = groups.C[4].player_id;
+
+    const r7 = await client.query(
+      "INSERT INTO tournament_rounds (tournament_id, round_number, round_name, status) VALUES ($1, 7, 'Playoffs - Cuartos de Final', 'active') RETURNING id",
+      [tournamentId]
+    );
+    const r8 = await client.query(
+      "INSERT INTO tournament_rounds (tournament_id, round_number, round_name, status) VALUES ($1, 8, 'Playoffs - Semifinales', 'pending') RETURNING id",
+      [tournamentId]
+    );
+    const r9 = await client.query(
+      "INSERT INTO tournament_rounds (tournament_id, round_number, round_name, status) VALUES ($1, 9, 'Playoffs - Gran Final', 'pending') RETURNING id",
+      [tournamentId]
+    );
+
+    const r7Id = r7.rows[0].id;
+    const r8Id = r8.rows[0].id;
+    const r9Id = r9.rows[0].id;
+
+    const semi1 = await client.query(
+      "INSERT INTO tournament_matches (round_id, player1_id, player2_id, status) VALUES ($1, NULL, NULL, 'pending') RETURNING id",
+      [r8Id]
+    );
+    const semi2 = await client.query(
+      "INSERT INTO tournament_matches (round_id, player1_id, player2_id, status) VALUES ($1, NULL, NULL, 'pending') RETURNING id",
+      [r8Id]
+    );
+    await client.query(
+      "INSERT INTO tournament_matches (round_id, player1_id, player2_id, status) VALUES ($1, NULL, NULL, 'pending')",
+      [r9Id]
+    );
+
+    const pad = n => n.toString().padStart(2, '0');
+    const nd = new Date();
+    const playedDateStr = `${nd.getFullYear()}-${pad(nd.getMonth()+1)}-${pad(nd.getDate())} ${pad(nd.getHours())}:${pad(nd.getMinutes())}`;
+
+    const m1 = await client.query(
+      "INSERT INTO tournament_matches (round_id, player1_id, player2_id, status) VALUES ($1, $2, $3, 'pending') RETURNING id",
+      [r7Id, losers[0], a5]
+    );
+    const m2 = await client.query(
+      "INSERT INTO tournament_matches (round_id, player1_id, player2_id, status) VALUES ($1, $2, $3, 'pending') RETURNING id",
+      [r7Id, losers[1], b5]
+    );
+    const m3 = await client.query(
+      "INSERT INTO tournament_matches (round_id, player1_id, player2_id, winner_id, status, score, played_date) VALUES ($1, $2, NULL, $2, 'completed', 'W.O.', $3) RETURNING id",
+      [r7Id, losers[2], playedDateStr]
+    );
+    const m4 = await client.query(
+      "INSERT INTO tournament_matches (round_id, player1_id, player2_id, winner_id, status, score, played_date) VALUES ($1, $2, NULL, $2, 'completed', 'W.O.', $3) RETURNING id",
+      [r7Id, c5, playedDateStr]
+    );
+
+    await propagateTournamentMatchWinner(client, m3.rows[0].id, losers[2]);
+    await propagateTournamentMatchWinner(client, m4.rows[0].id, c5);
+
+    await client.query('COMMIT');
+    res.json({ message: 'Playoffs bracket generated successfully' });
+  } catch (e) {
+    await client.query('ROLLBACK');
+    console.error(e);
+    res.status(500).json({ error: 'Server error' });
+  } finally {
+    client.release();
+  }
+});
+
 // ─── SEED ADMIN ───
 
 async function seedAdmin() {

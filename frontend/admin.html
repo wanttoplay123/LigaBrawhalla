@@ -42,6 +42,7 @@
     <li><a href="index.html">INICIO</a></li>
     <li><a href="standings.html">RANKINGS</a></li>
     <li><a href="matches.html">PARTIDAS</a></li>
+    <li><a href="tournaments.html">TORNEOS</a></li>
     <li><a href="hall-of-fame.html">SALÓN DE LA FAMA</a></li>
     <li><a href="admin.html" class="active">ADMIN</a></li>
     <li><a href="login.html" class="nav-auth-link" data-page="login" style="color:#ef4444;">CERRAR SESIÓN</a></li>
@@ -52,6 +53,7 @@
   <a href="index.html">INICIO</a>
   <a href="standings.html">RANKINGS</a>
   <a href="matches.html">PARTIDAS</a>
+  <a href="tournaments.html">TORNEOS</a>
   <a href="hall-of-fame.html">SALÓN DE LA FAMA</a>
   <a href="admin.html">ADMIN</a>
   <a href="login.html" class="nav-auth-link" data-page="login" style="color:#ef4444;">CERRAR SESIÓN</a>
@@ -150,6 +152,76 @@
         </h3>
         <div id="usersList">Cargando...</div>
       </div>
+
+      <!-- Torneos -->
+      <div class="admin-card">
+        <h3>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FFD700" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          GESTIÓN DE TORNEOS
+        </h3>
+        
+        <!-- Crear Torneo Form -->
+        <form id="createTournamentForm" class="admin-form" style="margin-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 20px;">
+          <label>Nombre del Torneo</label>
+          <input type="text" id="tournamentName" placeholder="Ej: Torneo de Apertura" required>
+          <label>Formato</label>
+          <select id="tournamentFormat" required>
+            <option value="custom_3groups">3 Grupos de 5 (Clasificación a Liga)</option>
+            <option value="single_elimination">Eliminación Directa (Brackets)</option>
+          </select>
+          <button type="submit" class="btn-action admin-btn" style="margin-top: 8px;">CREAR TORNEO</button>
+        </form>
+
+        <!-- Seleccionar Torneo -->
+        <div style="margin-bottom: 16px;">
+          <label>Seleccionar Torneo a Administrar</label>
+          <select id="adminTournamentSelect" onchange="onTournamentSelectChange()">
+            <option value="">Selecciona un torneo...</option>
+          </select>
+        </div>
+
+        <!-- Dynamic Management Area -->
+        <div id="tournamentMgmtArea" style="display: none;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; background: rgba(255,255,255,0.03); padding: 10px; border-radius: 6px;">
+            <span id="mgmtTournamentStatus" style="font-family:'Orbitron', sans-serif; font-size: 12px; letter-spacing:1.5px; font-weight:700;">STATUS: ACTIVE</span>
+            <span id="mgmtTournamentFormat" style="font-size:12px; color:rgba(255,255,255,0.5);">Formato: 3 Grupos</span>
+          </div>
+
+          <!-- If Not Started -->
+          <div id="mgmtNotStartedSection" style="display: none;">
+            <div style="margin-bottom: 16px;">
+              <h4 style="font-size: 14px; font-family:'Orbitron',sans-serif; letter-spacing:1px; margin-bottom: 8px; color: var(--gold);">SOLICITUDES PENDIENTES</h4>
+              <div id="mgmtPendingPlayers"></div>
+            </div>
+            
+            <div style="margin-bottom: 16px;">
+              <h4 style="font-size: 14px; font-family:'Orbitron',sans-serif; letter-spacing:1px; margin-bottom: 8px; color: #22c55e;">JUGADORES APROBADOS (<span id="mgmtApprovedCount">0</span>)</h4>
+              <div id="mgmtApprovedPlayers" style="font-size: 13px; color: rgba(255,255,255,0.6); line-height: 1.6;">Ninguno.</div>
+            </div>
+
+            <button class="btn-action admin-btn" style="width: 100%;" onclick="startTournament()">INICIAR TORNEO</button>
+          </div>
+
+          <!-- If Started -->
+          <div id="mgmtStartedSection" style="display: none;">
+            <!-- Group/Phases Actions -->
+            <div id="mgmtPhaseActions" style="display: flex; gap: 8px; margin-bottom: 16px;">
+              <button class="admin-btn btn-action" style="flex:1;" onclick="generateRepechaje()">GENERAR REPECHAJE</button>
+              <button class="admin-btn btn-action" style="flex:1;" onclick="generatePlayoffs()">GENERAR PLAYOFFS</button>
+            </div>
+
+            <!-- Matches Section -->
+            <div style="margin-top: 16px;">
+              <h4 style="font-size: 14px; font-family:'Orbitron',sans-serif; letter-spacing:1px; margin-bottom: 12px; color: #fff;">PARTIDAS DEL TORNEO</h4>
+              <div style="display:flex;gap:8px;margin-bottom:12px;">
+                <button id="tabTournamentPending" class="admin-btn btn-action" onclick="switchTournamentMatchTab('pending')" style="flex:1;">PENDIENTES</button>
+                <button id="tabTournamentCompleted" class="admin-btn" onclick="switchTournamentMatchTab('completed')" style="flex:1;background:rgba(255,255,255,0.05);color:rgba(255,255,255,0.4);border:1px solid rgba(255,255,255,0.1);">COMPLETADAS</button>
+              </div>
+              <div id="tournamentMatchesContainer"></div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </section>
@@ -194,6 +266,65 @@
       <div style="display:flex;gap:8px;margin-top:8px;">
         <button type="submit" class="btn-action admin-btn" style="flex:1;">REPROGRAMAR</button>
         <button type="button" class="admin-btn btn-danger" onclick="closeRescheduleModal()" style="flex:1;">CANCELAR</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Tournament Report Result Modal -->
+<div id="tournamentReportModal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);align-items:center;justify-content:center;">
+  <div style="background:var(--dark3);border:1px solid var(--card-border);border-radius:12px;padding:32px;max-width:520px;width:90%;">
+    <h3 style="font-family:'Bebas Neue',sans-serif;font-size:24px;letter-spacing:2px;color:#fff;margin-bottom:20px;">REPORTAR RESULTADO TORNEO</h3>
+    <p id="tReportModalMatchInfo" style="font-size:14px;color:rgba(255,255,255,0.5);margin-bottom:16px;"></p>
+    <form id="tReportModalForm" class="admin-form">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div>
+          <label>Ganador</label>
+          <select id="tReportWinner" required>
+            <option value="">Selecciona ganador...</option>
+            <option id="tReportWinnerP1" value=""></option>
+            <option id="tReportWinnerP2" value=""></option>
+          </select>
+        </div>
+        <div>
+          <label>Score (ej: 1-0, 2-1)</label>
+          <input type="text" id="tReportScore" placeholder="Ej: 2-1" required>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px;">
+        <div><label>Leyenda J1</label><input type="text" id="tReportLegend1" placeholder="Ej: Hattori"></div>
+        <div><label>Leyenda J2</label><input type="text" id="tReportLegend2" placeholder="Ej: Orion"></div>
+      </div>
+      
+      <div style="margin-top:12px;border-top:1px solid rgba(255,255,255,0.06);padding-top:12px;">
+        <h4 style="font-size:13px;font-family:'Orbitron',sans-serif;letter-spacing:1px;color:var(--gold);margin-bottom:8px;">ESTADÍSTICAS DE DESEMPATE</h4>
+        
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div>
+            <label id="tReportDamageP1Label">Daño J1</label>
+            <input type="number" id="tReportDamageP1" placeholder="0" min="0">
+          </div>
+          <div>
+            <label id="tReportDamageP2Label">Daño J2</label>
+            <input type="number" id="tReportDamageP2" placeholder="0" min="0">
+          </div>
+        </div>
+        
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px;">
+          <div>
+            <label id="tReportKosP1Label">KOs J1</label>
+            <input type="number" id="tReportKosP1" placeholder="0" min="0" max="99">
+          </div>
+          <div>
+            <label id="tReportKosP2Label">KOs J2</label>
+            <input type="number" id="tReportKosP2" placeholder="0" min="0" max="99">
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:8px;margin-top:20px;">
+        <button type="submit" class="btn-action admin-btn" style="flex:1;">GUARDAR</button>
+        <button type="button" class="admin-btn btn-danger" onclick="closeTournamentReportModal()" style="flex:1;">CANCELAR</button>
       </div>
     </form>
   </div>
@@ -681,15 +812,350 @@ async function resetUserPassword(userId, username) {
     showNotification('La contrase\u00F1a debe tener al menos 6 caracteres', 'error');
     return;
   }
-  if (!confirm('\u00BFRestablecer contrase\u00F1a de "' + username + '"?')) return;
-  const { ok, data } = await apiFetch('/admin/users/' + userId + '/password', {
+}
+
+// ─── GESTIÓN DE TORNEOS ───
+let selectedTournamentId = null;
+let tournamentMatches = [];
+let currentTournamentMatchTab = 'pending';
+
+async function loadAdminTournaments() {
+  const { ok, data } = await apiFetch('/tournaments');
+  const select = document.getElementById('adminTournamentSelect');
+  if (!select) return;
+  
+  const prevVal = select.value;
+  select.innerHTML = '<option value="">Selecciona un torneo...</option>';
+  
+  if (ok && Array.isArray(data)) {
+    data.forEach(t => {
+      const opt = document.createElement('option');
+      opt.value = t.id;
+      opt.textContent = `${t.name} (${t.status.toUpperCase()})`;
+      select.appendChild(opt);
+    });
+  }
+  
+  if (prevVal && [...select.options].some(o => o.value === prevVal)) {
+    select.value = prevVal;
+  }
+}
+
+document.getElementById('createTournamentForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const name = document.getElementById('tournamentName').value.trim();
+  const format = document.getElementById('tournamentFormat').value;
+  if (!name || !format) return;
+  
+  const { ok, data } = await apiFetch('/tournaments', {
+    method: 'POST',
+    body: JSON.stringify({ name, format })
+  });
+  
+  if (ok) {
+    showNotification('Torneo creado con éxito', 'success');
+    document.getElementById('tournamentName').value = '';
+    await loadAdminTournaments();
+    if (data && data.id) {
+      document.getElementById('adminTournamentSelect').value = data.id;
+      onTournamentSelectChange();
+    }
+  } else {
+    showNotification(data.error || 'Error al crear torneo', 'error');
+  }
+});
+
+async function onTournamentSelectChange() {
+  const select = document.getElementById('adminTournamentSelect');
+  const id = select.value;
+  const area = document.getElementById('tournamentMgmtArea');
+  
+  if (!id) {
+    area.style.display = 'none';
+    selectedTournamentId = null;
+    return;
+  }
+  
+  selectedTournamentId = parseInt(id);
+  area.style.display = 'block';
+  
+  await reloadTournamentMgmt();
+}
+
+async function reloadTournamentMgmt() {
+  if (!selectedTournamentId) return;
+  
+  const { ok, data } = await apiFetch(`/tournaments/${selectedTournamentId}`);
+  if (!ok || !data) {
+    showNotification('Error al cargar detalles del torneo', 'error');
+    return;
+  }
+  
+  const statusEl = document.getElementById('mgmtTournamentStatus');
+  const formatEl = document.getElementById('mgmtTournamentFormat');
+  
+  statusEl.textContent = `STATUS: ${data.status.toUpperCase()}`;
+  statusEl.className = data.status === 'active' ? 'status-active' : 'status-completed';
+  statusEl.style.cssText = data.status === 'active' 
+    ? 'font-family:"Orbitron", sans-serif; font-size:12px; letter-spacing:1.5px; font-weight:700; color:#22c55e;' 
+    : 'font-family:"Orbitron", sans-serif; font-size:12px; letter-spacing:1.5px; font-weight:700; color:var(--gold);';
+  
+  formatEl.textContent = `Formato: ${data.format === 'custom_3groups' ? '3 Grupos de 5' : 'Eliminación Directa'}`;
+  
+  const phaseActions = document.getElementById('mgmtPhaseActions');
+  if (phaseActions) {
+    phaseActions.style.display = data.format === 'custom_3groups' && data.status === 'active' ? 'flex' : 'none';
+  }
+  
+  const { ok: mOk, data: mData } = await apiFetch(`/tournaments/${selectedTournamentId}/matches`);
+  const started = mOk && mData && mData.length > 0;
+  
+  const notStartedSection = document.getElementById('mgmtNotStartedSection');
+  const startedSection = document.getElementById('mgmtStartedSection');
+  
+  if (!started) {
+    notStartedSection.style.display = 'block';
+    startedSection.style.display = 'none';
+    await loadTournamentPlayersAdmin();
+  } else {
+    notStartedSection.style.display = 'none';
+    startedSection.style.display = 'block';
+    tournamentMatches = mData;
+    renderTournamentMatches();
+  }
+}
+
+async function loadTournamentPlayersAdmin() {
+  if (!selectedTournamentId) return;
+  const { ok, data } = await apiFetch(`/tournaments/${selectedTournamentId}/players`);
+  const pendingDiv = document.getElementById('mgmtPendingPlayers');
+  const approvedDiv = document.getElementById('mgmtApprovedPlayers');
+  const approvedCountEl = document.getElementById('mgmtApprovedCount');
+  
+  if (!ok || !data) {
+    pendingDiv.innerHTML = '<p style="color:#ef4444;">Error al cargar jugadores.</p>';
+    approvedDiv.textContent = 'Error.';
+    return;
+  }
+  
+  const pending = data.filter(p => p.status === 'pending');
+  const approved = data.filter(p => p.status === 'approved');
+  
+  approvedCountEl.textContent = approved.length;
+  
+  if (pending.length === 0) {
+    pendingDiv.innerHTML = '<p style="color:rgba(255,255,255,0.4);font-size:13px;margin:8px 0;">No hay solicitudes pendientes.</p>';
+  } else {
+    let html = '<table class="admin-table"><tr><th>Jugador</th><th>Acción</th></tr>';
+    pending.forEach(p => {
+      html += `<tr>
+        <td>${p.username} (${p.brawlhalla_name || '—'})</td>
+        <td>
+          <button class="admin-btn btn-approve" onclick="verifyTournamentPlayer(${p.player_id}, 'approved')">✓</button>
+          <button class="admin-btn btn-danger" onclick="verifyTournamentPlayer(${p.player_id}, 'rejected')">✗</button>
+        </td>
+      </tr>`;
+    });
+    html += '</table>';
+    pendingDiv.innerHTML = html;
+  }
+  
+  if (approved.length === 0) {
+    approvedDiv.textContent = 'Ninguno.';
+  } else {
+    approvedDiv.innerHTML = approved.map((p, idx) => `${idx + 1}. <strong>${p.username}</strong> (${p.brawlhalla_name || '—'})`).join('<br>');
+  }
+}
+
+async function verifyTournamentPlayer(playerId, action) {
+  if (!selectedTournamentId) return;
+  const { ok, data } = await apiFetch(`/tournaments/${selectedTournamentId}/players/${playerId}/verify`, {
     method: 'PATCH',
-    body: JSON.stringify({ new_password: newPassword })
+    body: JSON.stringify({ action })
   });
   if (ok) {
-    showNotification('Contrase\u00F1a actualizada', 'success');
+    showNotification('Jugador ' + (action === 'approved' ? 'aprobado' : 'rechazado'), 'success');
+    await loadTournamentPlayersAdmin();
   } else {
-    showNotification(data.error || 'Error', 'error');
+    showNotification(data.error || 'Error al verificar jugador', 'error');
+  }
+}
+
+async function startTournament() {
+  if (!selectedTournamentId) return;
+  if (!confirm('¿Seguro que deseas iniciar el torneo? No podrás registrar más jugadores una vez iniciado.')) return;
+  
+  const { ok, data } = await apiFetch(`/tournaments/${selectedTournamentId}/start`, {
+    method: 'POST'
+  });
+  
+  if (ok) {
+    showNotification('¡Torneo iniciado con éxito! Partidas generadas.', 'success');
+    await reloadTournamentMgmt();
+  } else {
+    showNotification(data.error || 'Error al iniciar torneo', 'error');
+  }
+}
+
+function switchTournamentMatchTab(tab) {
+  currentTournamentMatchTab = tab;
+  document.getElementById('tabTournamentPending').className = tab === 'pending' ? 'admin-btn btn-action' : 'admin-btn';
+  document.getElementById('tabTournamentPending').style.cssText = tab === 'pending' ? 'flex:1;' : 'flex:1;background:rgba(255,255,255,0.05);color:rgba(255,255,255,0.4);border:1px solid rgba(255,255,255,0.1);';
+  document.getElementById('tabTournamentCompleted').className = tab === 'completed' ? 'admin-btn btn-action' : 'admin-btn';
+  document.getElementById('tabTournamentCompleted').style.cssText = tab === 'completed' ? 'flex:1;' : 'flex:1;background:rgba(255,255,255,0.05);color:rgba(255,255,255,0.4);border:1px solid rgba(255,255,255,0.1);';
+  renderTournamentMatches();
+}
+
+function renderTournamentMatches() {
+  const container = document.getElementById('tournamentMatchesContainer');
+  if (!container) return;
+  
+  const filtered = tournamentMatches.filter(m => m.status === currentTournamentMatchTab);
+  
+  if (filtered.length === 0) {
+    container.innerHTML = `<p style="color:rgba(255,255,255,0.4);font-size:13px;margin:8px 0;text-align:center;">No hay partidas ${currentTournamentMatchTab === 'pending' ? 'pendientes' : 'completadas'} en este torneo.</p>`;
+    return;
+  }
+  
+  let html = '<table class="admin-table"><tr><th>Fase / Ronda</th><th>J1</th><th>Score</th><th>J2</th><th>Acción</th></tr>';
+  filtered.forEach(m => {
+    const p1Name = m.player1_name || m.player1_username || 'BYE';
+    const p2Name = m.player2_name || m.player2_username || 'BYE';
+    const hasBye = !m.player1_id || !m.player2_id;
+    
+    html += `<tr>
+      <td style="font-size:11px;color:rgba(255,255,255,0.5);">${m.round_name || `Ronda ${m.round_number}`}</td>
+      <td style="${m.winner_id && m.winner_id === m.player1_id ? 'color:#22c55e;font-weight:bold;' : ''}">${p1Name}</td>
+      <td style="text-align:center;font-weight:600;color:#a855f7;">${m.score || (m.status === 'completed' ? 'W-L' : '—')}</td>
+      <td style="${m.winner_id && m.winner_id === m.player2_id ? 'color:#22c55e;font-weight:bold;' : ''}">${p2Name}</td>
+      <td>
+        ${m.status === 'pending' && !hasBye ? `
+          <button class="admin-btn btn-action" onclick="openTournamentReportModal(${m.id}, ${m.player1_id}, ${m.player2_id}, '${p1Name.replace(/'/g, "\\'")}', '${p2Name.replace(/'/g, "\\'")}')">REPORTAR</button>
+        ` : '—'}
+      </td>
+    </tr>`;
+  });
+  html += '</table>';
+  container.innerHTML = html;
+}
+
+let activeTMatchId = null;
+let activeTP1Id = null;
+let activeTP2Id = null;
+
+function openTournamentReportModal(matchId, p1Id, p2Id, p1Name, p2Name) {
+  activeTMatchId = matchId;
+  activeTP1Id = p1Id;
+  activeTP2Id = p2Id;
+  
+  document.getElementById('tReportModalMatchInfo').textContent = `Partida de Torneo #${matchId}: ${p1Name} vs ${p2Name}`;
+  
+  const winSelect = document.getElementById('tReportWinner');
+  const winP1 = document.getElementById('tReportWinnerP1');
+  const winP2 = document.getElementById('tReportWinnerP2');
+  
+  winP1.value = p1Id;
+  winP1.textContent = p1Name;
+  winP2.value = p2Id;
+  winP2.textContent = p2Name;
+  winSelect.value = '';
+  
+  document.getElementById('tReportScore').value = '1-0';
+  document.getElementById('tReportLegend1').value = '';
+  document.getElementById('tReportLegend2').value = '';
+  
+  document.getElementById('tReportDamageP1Label').textContent = `Daño ${p1Name}`;
+  document.getElementById('tReportDamageP2Label').textContent = `Daño ${p2Name}`;
+  document.getElementById('tReportKosP1Label').textContent = `KOs ${p1Name}`;
+  document.getElementById('tReportKosP2Label').textContent = `KOs ${p2Name}`;
+  
+  document.getElementById('tReportDamageP1').value = '';
+  document.getElementById('tReportDamageP2').value = '';
+  document.getElementById('tReportKosP1').value = '';
+  document.getElementById('tReportKosP2').value = '';
+  
+  document.getElementById('tournamentReportModal').style.display = 'flex';
+}
+
+function closeTournamentReportModal() {
+  document.getElementById('tournamentReportModal').style.display = 'none';
+  activeTMatchId = null;
+}
+
+document.getElementById('tReportModalForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  if (!activeTMatchId || !selectedTournamentId) return;
+  
+  const winnerId = parseInt(document.getElementById('tReportWinner').value);
+  const score = document.getElementById('tReportScore').value.trim();
+  const legend1 = document.getElementById('tReportLegend1').value.trim();
+  const legend2 = document.getElementById('tReportLegend2').value.trim();
+  const p1_damage = parseInt(document.getElementById('tReportDamageP1').value) || 0;
+  const p2_damage = parseInt(document.getElementById('tReportDamageP2').value) || 0;
+  const p1_kos = parseInt(document.getElementById('tReportKosP1').value) || 0;
+  const p2_kos = parseInt(document.getElementById('tReportKosP2').value) || 0;
+  
+  if (!winnerId) {
+    showNotification('Debes seleccionar un ganador', 'error');
+    return;
+  }
+  
+  const { ok, data } = await apiFetch(`/tournaments/${selectedTournamentId}/matches/${activeTMatchId}/result`, {
+    method: 'PATCH',
+    body: JSON.stringify({
+      winner_id: winnerId,
+      score,
+      legend1,
+      legend2,
+      p1_damage,
+      p2_damage,
+      p1_kos,
+      p2_kos
+    })
+  });
+  
+  if (ok) {
+    showNotification('Resultado de torneo registrado', 'success');
+    closeTournamentReportModal();
+    const { ok: mOk, data: mData } = await apiFetch(`/tournaments/${selectedTournamentId}/matches`);
+    if (mOk) {
+      tournamentMatches = mData;
+      renderTournamentMatches();
+    }
+  } else {
+    showNotification(data.error || 'Error al guardar resultado', 'error');
+  }
+});
+
+async function generateRepechaje() {
+  if (!selectedTournamentId) return;
+  if (!confirm('¿Generar la fase de repechaje? Esto requiere que la fase de grupos haya concluido.')) return;
+  
+  const { ok, data } = await apiFetch(`/tournaments/${selectedTournamentId}/generate-repechaje`, {
+    method: 'POST'
+  });
+  
+  if (ok) {
+    showNotification('¡Repechaje generado con éxito!', 'success');
+    await reloadTournamentMgmt();
+  } else {
+    showNotification(data.error || 'Error al generar repechaje', 'error');
+  }
+}
+
+async function generatePlayoffs() {
+  if (!selectedTournamentId) return;
+  if (!confirm('¿Generar los brackets de playoffs finales? Esto requiere que la fase de repechaje haya concluido.')) return;
+  
+  const { ok, data } = await apiFetch(`/tournaments/${selectedTournamentId}/generate-playoffs`, {
+    method: 'POST'
+  });
+  
+  if (ok) {
+    showNotification('¡Playoffs final generados con éxito!', 'success');
+    await reloadTournamentMgmt();
+  } else {
+    showNotification(data.error || 'Error al generar playoffs', 'error');
   }
 }
 
@@ -700,6 +1166,7 @@ loadProfile();
 loadPendingMatches();
 loadActivePlayers();
 loadUsers();
+loadAdminTournaments();
 setInterval(loadPending, 300000); // 5 minutes
 setInterval(() => { if (currentMatchTab === 'pending') loadPendingMatches(); else loadCompletedMatches(); }, 300000); // 5 minutes
 updateNav();

@@ -72,6 +72,52 @@ async function initDB() {
       CREATE INDEX IF NOT EXISTS idx_matches_player2_id ON matches(player2_id);
       CREATE INDEX IF NOT EXISTS idx_matches_status ON matches(status);
 
+      CREATE TABLE IF NOT EXISTS tournaments (
+        id SERIAL PRIMARY KEY,
+        name TEXT NOT NULL,
+        format TEXT NOT NULL CHECK (format IN ('custom_3groups', 'single_elimination')),
+        status TEXT DEFAULT 'active' CHECK (status IN ('active', 'completed')),
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS tournament_players (
+        id SERIAL PRIMARY KEY,
+        tournament_id INTEGER REFERENCES tournaments(id) ON DELETE CASCADE,
+        player_id INTEGER REFERENCES players(id) ON DELETE CASCADE,
+        group_name TEXT CHECK (group_name IN ('A', 'B', 'C') OR group_name IS NULL),
+        status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'approved')),
+        seed INTEGER,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE(tournament_id, player_id)
+      );
+      CREATE TABLE IF NOT EXISTS tournament_rounds (
+        id SERIAL PRIMARY KEY,
+        tournament_id INTEGER REFERENCES tournaments(id) ON DELETE CASCADE,
+        round_number INTEGER NOT NULL,
+        round_name TEXT NOT NULL,
+        status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'active', 'completed'))
+      );
+      CREATE TABLE IF NOT EXISTS tournament_matches (
+        id SERIAL PRIMARY KEY,
+        round_id INTEGER REFERENCES tournament_rounds(id) ON DELETE CASCADE,
+        player1_id INTEGER REFERENCES players(id) ON DELETE CASCADE,
+        player2_id INTEGER REFERENCES players(id) ON DELETE CASCADE,
+        winner_id INTEGER REFERENCES players(id) ON DELETE SET NULL,
+        score TEXT,
+        legend1 TEXT,
+        legend2 TEXT,
+        status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'completed', 'cancelled')),
+        played_date TEXT,
+        scheduled_date TEXT,
+        p1_damage INTEGER DEFAULT 0,
+        p2_damage INTEGER DEFAULT 0,
+        p1_kos INTEGER DEFAULT 0,
+        p2_kos INTEGER DEFAULT 0
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_tournament_players_tournament_id ON tournament_players(tournament_id);
+      CREATE INDEX IF NOT EXISTS idx_tournament_rounds_tournament_id ON tournament_rounds(tournament_id);
+      CREATE INDEX IF NOT EXISTS idx_tournament_matches_round_id ON tournament_matches(round_id);
+
       DELETE FROM matches WHERE status = 'cancelled';
     `);
     console.log('PostgreSQL tables ready with indexes and cleaned up');
