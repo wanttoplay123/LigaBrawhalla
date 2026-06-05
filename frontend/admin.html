@@ -644,41 +644,47 @@ document.getElementById('createAdminForm').addEventListener('submit', async (e) 
 // ─── USER MANAGEMENT ───
 
 async function loadUsers() {
-  const { ok, data } = await apiFetch('/admin/users');
-  const div = document.getElementById('usersList');
-  if (!ok || data.length === 0) {
-    div.innerHTML = '<p style="color:rgba(255,255,255,0.4);font-size:14px;">No hay usuarios</p>';
-    return;
+  try {
+    const { ok, data } = await apiFetch('/admin/users');
+    const div = document.getElementById('usersList');
+    if (!ok || !Array.isArray(data) || data.length === 0) {
+      div.innerHTML = '<p style="color:rgba(255,255,255,0.4);font-size:14px;">No hay usuarios</p>';
+      return;
+    }
+    let html = '<table class="admin-table"><tr><th>Usuario</th><th>Rol</th><th>Brawlhalla</th><th>Acción</th></tr>';
+    data.forEach(u => {
+      const isAdmin = u.role === 'admin';
+      const safeUser = (u.username || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;');
+      html += `<tr>
+        <td>${safeUser}</td>
+        <td>${isAdmin ? '&#x1F451; Admin' : '&#x1F3AE; Player'}</td>
+        <td>${(u.brawlhalla_name || '&mdash;').replace(/</g,'&lt;')}</td>
+        <td>${isAdmin ? '<span style="color:rgba(255,255,255,0.3);font-size:12px;">&mdash;</span>' :
+          `<button class="admin-btn btn-action" onclick="resetUserPassword(${u.id},'${safeUser.replace(/'/g,"\\'")}')">CAMBIAR CONTRASE&#x2011;A</button>`}
+        </td>
+      </tr>`;
+    });
+    html += '</table>';
+    div.innerHTML = html;
+  } catch (e) {
+    console.error('loadUsers error:', e);
+    document.getElementById('usersList').innerHTML = '<p style="color:#ef4444;font-size:14px;">Error al cargar usuarios</p>';
   }
-  let html = '<table class="admin-table"><tr><th>Usuario</th><th>Rol</th><th>Brawlhalla</th><th>Acción</th></tr>';
-  data.forEach(u => {
-    const isAdmin = u.role === 'admin';
-    html += `<tr>
-      <td>${u.username}</td>
-      <td>${isAdmin ? '👑 Admin' : '🎮 Player'}</td>
-      <td>${u.brawlhalla_name || '—'}</td>
-      <td>${isAdmin ? '<span style="color:rgba(255,255,255,0.3);font-size:12px;">—</span>' :
-        `<button class="admin-btn btn-action" onclick="resetUserPassword(${u.id},'${u.username.replace(/'/g,"\\'")}')">CAMBIAR CONTRASEÑA</button>`}
-      </td>
-    </tr>`;
-  });
-  html += '</table>';
-  div.innerHTML = html;
 }
 
 async function resetUserPassword(userId, username) {
-  const newPassword = prompt(`Nueva contraseña para "${username}":`);
+  const newPassword = prompt('Nueva contrase\u00F1a para "' + username + '":');
   if (!newPassword || newPassword.length < 6) {
-    showNotification('La contraseña debe tener al menos 6 caracteres', 'error');
+    showNotification('La contrase\u00F1a debe tener al menos 6 caracteres', 'error');
     return;
   }
-  if (!confirm(`¿Restablecer contraseña de "${username}"?`)) return;
-  const { ok, data } = await apiFetch(`/admin/users/${userId}/password`, {
+  if (!confirm('\u00BFRestablecer contrase\u00F1a de "' + username + '"?')) return;
+  const { ok, data } = await apiFetch('/admin/users/' + userId + '/password', {
     method: 'PATCH',
     body: JSON.stringify({ new_password: newPassword })
   });
   if (ok) {
-    showNotification('Contraseña actualizada', 'success');
+    showNotification('Contrase\u00F1a actualizada', 'success');
   } else {
     showNotification(data.error || 'Error', 'error');
   }
