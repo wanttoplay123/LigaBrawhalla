@@ -3,7 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { initPool, getPool, initDB } = require('./db');
+const { pool, initDB } = require('./db');
 const brawlhalla = require('./brawlhalla');
 const { generateFixture } = require('./fixture');
 
@@ -42,10 +42,10 @@ app.post('/api/auth/register', async (req, res) => {
     if (!username || !password || !brawlhalla_id) return res.status(400).json({ error: 'Username, password and brawlhalla_id required' });
     if (password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
 
-    const existingUser = await getPool().query('SELECT id FROM users WHERE username = $1', [username]);
+    const existingUser = await pool.query('SELECT id FROM users WHERE username = $1', [username]);
     if (existingUser.rows.length > 0) return res.status(400).json({ error: 'Username already taken' });
 
-    const existingPlayer = await getPool().query('SELECT id FROM players WHERE brawlhalla_id = $1', [brawlhalla_id]);
+    const existingPlayer = await pool.query('SELECT id FROM players WHERE brawlhalla_id = $1', [brawlhalla_id]);
     if (existingPlayer.rows.length > 0) return res.status(400).json({ error: 'Brawlhalla ID already registered' });
 
     const verified = await brawlhalla.verifyPlayerExists(brawlhalla_id);
@@ -53,13 +53,13 @@ app.post('/api/auth/register', async (req, res) => {
 
     const passwordHash = await bcrypt.hash(password, 10);
 
-    const userResult = await getPool().query(
+    const userResult = await pool.query(
       'INSERT INTO users (username, password_hash, role) VALUES ($1, $2, $3) RETURNING id',
       [username, passwordHash, 'player']
     );
     const userId = userResult.rows[0].id;
 
-    await getPool().query(
+    await pool.query(
       `INSERT INTO players (user_id, brawlhalla_id, brawlhalla_name, tier, rating, damage_dealt, damage_taken, status)
        VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending')`,
       [userId, brawlhalla_id, verified.name, verified.tier || 'Unranked', verified.rating || 0,
@@ -81,13 +81,13 @@ app.post('/api/auth/login', async (req, res) => {
     const brawlhallaIdNum = parseInt(username, 10);
     let userResult;
     if (!isNaN(brawlhallaIdNum)) {
-      userResult = await getPool().query(`
+      userResult = await pool.query(`
         SELECT u.id, u.username, u.password_hash, u.role, p.brawlhalla_id
         FROM users u JOIN players p ON p.user_id = u.id
         WHERE p.brawlhalla_id = $1
       `, [brawlhallaIdNum]);
     } else {
-      userResult = await getPool().query(`
+      userResult = await pool.query(`
         SELECT u.id, u.username, u.password_hash, u.role, p.brawlhalla_id
         FROM users u LEFT JOIN players p ON p.user_id = u.id
         WHERE u.username = $1
@@ -109,10 +109,10 @@ app.post('/api/auth/login', async (req, res) => {
 
 app.get('/api/auth/me', authMiddleware, async (req, res) => {
   try {
-    const userResult = await getPool().query('SELECT id, username, role, created_at FROM users WHERE id = $1', [req.user.id]);
+    const userResult = await pool.query('SELECT id, username, role, created_at FROM users WHERE id = $1', [req.user.id]);
     if (userResult.rows.length === 0) return res.status(404).json({ error: 'User not found' });
 
-    const playerResult = await getPool().query('SELECT id, brawlhalla_id, brawlhalla_name, tier, rating, status FROM players WHERE user_id = $1', [req.user.id]);
+    const playerResult = await pool.query('SELECT id, brawlhalla_id, brawlhalla_name, tier, rating, status FROM players WHERE user_id = $1', [req.user.id]);
     const user = userResult.rows[0];
     const player = playerResult.rows[0] || null;
 
@@ -147,7 +147,7 @@ app.get('/api/brawlhalla/player/:id', async (req, res) => {
 
 app.get('/api/players', async (req, res) => {
   try {
-    const result = await getPool().query(`
+    const result = await pool.query(`
       SELECT p.id, p.brawlhalla_id, p.brawlhalla_name, p.tier, p.rating, p.status, p.created_at, u.username
       FROM players p JOIN users u ON u.id = p.user_id
       WHERE p.status = 'approved' AND p.brawlhalla_id IS NOT NULL
@@ -161,7 +161,7 @@ app.get('/api/players', async (req, res) => {
 
 app.get('/api/players/pending', authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const result = await getPool().query(`
+    const result = await pool.query(`
       SELECT p.id, p.brawlhalla_id, p.brawlhalla_name, p.tier, p.rating, p.status, p.created_at, u.username
       FROM players p JOIN users u ON u.id = p.user_id
       WHERE p.status = 'pending'
@@ -175,7 +175,7 @@ app.get('/api/players/pending', authMiddleware, adminMiddleware, async (req, res
 
 app.get('/api/players/:id', async (req, res) => {
   try {
-    const playerResult = await getPool().query(`
+    const playerResult = await pool.query(`
       SELECT p.id, p.brawlhalla_id, p.brawlhalla_name, p.tier, p.rating, p.damage_dealt, p.damage_taken, p.status, u.username
       FROM players p JOIN users u ON u.id = p.user_id
       WHERE p.id = $1
@@ -185,7 +185,7 @@ app.get('/api/players/:id', async (req, res) => {
 
     const player = playerResult.rows[0];
 
-    const matchStats = await getPool().query(`
+    const matchStats = await pool.query(`
       SELECT
         COUNT(*) FILTER (WHERE m.status = 'completed' AND (m.player1_id = $1 OR m.player2_id = $1)) AS total_matches,
         COUNT(*) FILTER (WHERE m.status = 'completed' AND m.winner_id = $1) AS wins,
@@ -195,7 +195,7 @@ app.get('/api/players/:id', async (req, res) => {
       WHERE r.status = 'active' OR m.status = 'completed'
     `, [req.params.id]);
 
-    const standings = await getPool().query(`
+    const standings = await pool.query(`
       SELECT COALESCE(SUM(CASE WHEN m.winner_id = $1 THEN 3 ELSE 0 END), 0) AS points
       FROM matches m
       JOIN rounds r ON r.id = m.round_id
@@ -215,7 +215,7 @@ app.get('/api/players/:id', async (req, res) => {
 
 app.get('/api/players/:id/matches', async (req, res) => {
   try {
-    const result = await getPool().query(`
+    const result = await pool.query(`
       SELECT m.id, m.round_id, r.round_number, m.player1_id, m.player2_id, m.winner_id,
              m.legend1, m.legend2, m.score, m.status, m.played_date, m.scheduled_date, m.rescheduled,
              p1.brawlhalla_name AS player1_name, p2.brawlhalla_name AS player2_name,
@@ -242,7 +242,7 @@ app.get('/api/players/h2h/:player1Id/:player2Id', async (req, res) => {
     const { player1Id, player2Id } = req.params;
     const p1 = parseInt(player1Id);
     const p2 = parseInt(player2Id);
-    const matches = await getPool().query(`
+    const matches = await pool.query(`
       SELECT m.id, m.round_id, r.round_number, m.player1_id, m.player2_id, m.winner_id,
              m.legend1, m.legend2, m.score, m.status, m.played_date, m.scheduled_date, m.rescheduled,
              p1.brawlhalla_name AS player1_name, p2.brawlhalla_name AS player2_name,
@@ -282,7 +282,7 @@ app.patch('/api/admin/players/:id/verify', authMiddleware, adminMiddleware, asyn
     const { action } = req.body; // 'approved' or 'rejected'
     if (!['approved', 'rejected'].includes(action)) return res.status(400).json({ error: 'Invalid action' });
 
-    await getPool().query('UPDATE players SET status = $1 WHERE id = $2', [action, req.params.id]);
+    await pool.query('UPDATE players SET status = $1 WHERE id = $2', [action, req.params.id]);
     res.json({ message: `Player ${action}` });
   } catch (e) {
     res.status(500).json({ error: 'Server error' });
@@ -291,11 +291,11 @@ app.patch('/api/admin/players/:id/verify', authMiddleware, adminMiddleware, asyn
 
 app.delete('/api/admin/players/:id', authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const playerResult = await getPool().query('SELECT user_id FROM players WHERE id = $1', [req.params.id]);
+    const playerResult = await pool.query('SELECT user_id FROM players WHERE id = $1', [req.params.id]);
     if (playerResult.rows.length === 0) return res.status(404).json({ error: 'Player not found' });
 
     const userId = playerResult.rows[0].user_id;
-    await getPool().query('DELETE FROM users WHERE id = $1', [userId]);
+    await pool.query('DELETE FROM users WHERE id = $1', [userId]);
     res.json({ message: 'Player removed' });
   } catch (e) {
     res.status(500).json({ error: 'Server error' });
@@ -304,18 +304,18 @@ app.delete('/api/admin/players/:id', authMiddleware, adminMiddleware, async (req
 
 app.post('/api/admin/players/:id/expel', authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const playerResult = await getPool().query('SELECT id FROM players WHERE id = $1', [req.params.id]);
+    const playerResult = await pool.query('SELECT id FROM players WHERE id = $1', [req.params.id]);
     if (playerResult.rows.length === 0) return res.status(404).json({ error: 'Player not found' });
 
-    const activeSeason = await getPool().query("SELECT id FROM seasons WHERE status = 'active' LIMIT 1");
+    const activeSeason = await pool.query("SELECT id FROM seasons WHERE status = 'active' LIMIT 1");
     if (activeSeason.rows.length > 0) {
-      await getPool().query(
+      await pool.query(
         'DELETE FROM season_players WHERE season_id = $1 AND player_id = $2',
         [activeSeason.rows[0].id, req.params.id]
       );
     }
 
-    await getPool().query("UPDATE players SET status = 'rejected' WHERE id = $1", [req.params.id]);
+    await pool.query("UPDATE players SET status = 'rejected' WHERE id = $1", [req.params.id]);
     res.json({ message: 'Player expelled from league' });
   } catch (e) {
     res.status(500).json({ error: 'Server error' });
@@ -324,7 +324,7 @@ app.post('/api/admin/players/:id/expel', authMiddleware, adminMiddleware, async 
 
 app.get('/api/admin/players/approved', authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const result = await getPool().query(`
+    const result = await pool.query(`
       SELECT p.id, p.brawlhalla_id, p.brawlhalla_name, p.tier, p.rating, p.damage_dealt, p.damage_taken, p.created_at, u.username
       FROM players p JOIN users u ON u.id = p.user_id
       WHERE p.status = 'approved' AND p.brawlhalla_id IS NOT NULL
@@ -338,7 +338,7 @@ app.get('/api/admin/players/approved', authMiddleware, adminMiddleware, async (r
 
 app.get('/api/admin/matches/pending', authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const result = await getPool().query(`
+    const result = await pool.query(`
       SELECT m.id, m.round_id, r.round_number, m.scheduled_date, m.rescheduled,
              p1.brawlhalla_name AS player1_name, p2.brawlhalla_name AS player2_name,
              u1.username AS player1_username, u2.username AS player2_username,
@@ -363,15 +363,15 @@ app.post('/api/admin/users', authMiddleware, adminMiddleware, async (req, res) =
     const { username, password, role } = req.body;
     if (!username || !password) return res.status(400).json({ error: 'Username and password required' });
 
-    const existing = await getPool().query('SELECT id FROM users WHERE username = $1', [username]);
+    const existing = await pool.query('SELECT id FROM users WHERE username = $1', [username]);
     if (existing.rows.length > 0) return res.status(400).json({ error: 'Username already exists' });
 
     const hash = await bcrypt.hash(password, 10);
-    const userResult = await getPool().query('INSERT INTO users (username, password_hash, role) VALUES ($1, $2, $3) RETURNING id',
+    const userResult = await pool.query('INSERT INTO users (username, password_hash, role) VALUES ($1, $2, $3) RETURNING id',
       [username, hash, role || 'admin']);
     const userId = userResult.rows[0].id;
 
-    await getPool().query(
+    await pool.query(
       `INSERT INTO players (user_id, brawlhalla_id, brawlhalla_name, status)
        VALUES ($1, NULL, $2, 'approved')`,
       [userId, username]
@@ -385,7 +385,7 @@ app.post('/api/admin/users', authMiddleware, adminMiddleware, async (req, res) =
 
 app.get('/api/admin/profile', authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const result = await getPool().query(`
+    const result = await pool.query(`
       SELECT p.id, p.brawlhalla_id, p.brawlhalla_name, p.tier, p.rating, p.damage_dealt, p.damage_taken, p.status
       FROM players p WHERE p.user_id = $1
     `, [req.user.id]);
@@ -404,7 +404,7 @@ app.patch('/api/admin/profile', authMiddleware, adminMiddleware, async (req, res
     const verified = await brawlhalla.verifyPlayerExists(brawlhalla_id);
     if (!verified) return res.status(400).json({ error: 'Brawlhalla ID not found in game' });
 
-    await getPool().query(`
+    await pool.query(`
       UPDATE players
       SET brawlhalla_id = $1, brawlhalla_name = $2, tier = $3, rating = $4, damage_dealt = $5, damage_taken = $6
       WHERE user_id = $7
@@ -425,20 +425,20 @@ app.post('/api/seasons', authMiddleware, adminMiddleware, async (req, res) => {
     const { name } = req.body;
     if (!name) return res.status(400).json({ error: 'Season name required' });
 
-    const activeSeason = await getPool().query("SELECT id FROM seasons WHERE status = 'active'");
+    const activeSeason = await pool.query("SELECT id FROM seasons WHERE status = 'active'");
     if (activeSeason.rows.length > 0) return res.status(400).json({ error: 'An active season already exists' });
 
-    const approvedPlayers = await getPool().query("SELECT id FROM players WHERE status = 'approved' AND brawlhalla_id IS NOT NULL");
+    const approvedPlayers = await pool.query("SELECT id FROM players WHERE status = 'approved' AND brawlhalla_id IS NOT NULL");
     if (approvedPlayers.rows.length < 2) return res.status(400).json({ error: 'Need at least 2 approved players' });
 
-    const seasonResult = await getPool().query('INSERT INTO seasons (name) VALUES ($1) RETURNING id', [name]);
+    const seasonResult = await pool.query('INSERT INTO seasons (name) VALUES ($1) RETURNING id', [name]);
     const seasonId = seasonResult.rows[0].id;
 
     const playerIds = approvedPlayers.rows.map(r => r.id);
     const shuffled = [...playerIds].sort(() => Math.random() - 0.5);
 
     for (let i = 0; i < shuffled.length; i++) {
-      await getPool().query(
+      await pool.query(
         'INSERT INTO season_players (season_id, player_id, initial_position) VALUES ($1, $2, $3)',
         [seasonId, shuffled[i], i + 1]
       );
@@ -463,7 +463,7 @@ app.post('/api/seasons', authMiddleware, adminMiddleware, async (req, res) => {
       const roundDate = new Date(firstSat);
       roundDate.setDate(firstSat.getDate() + weeks * 7 + extra);
 
-      const roundResult = await getPool().query(
+      const roundResult = await pool.query(
         'INSERT INTO rounds (season_id, round_number, status) VALUES ($1, $2, $3) RETURNING id',
         [seasonId, round.round_number, round.round_number === 1 ? 'active' : 'pending']
       );
@@ -474,7 +474,7 @@ app.post('/api/seasons', authMiddleware, adminMiddleware, async (req, res) => {
         const matchDate = new Date(roundDate);
         matchDate.setHours(hour, 0, 0, 0);
         const dateStr = toLocalStr(matchDate);
-        await getPool().query(
+        await pool.query(
           'INSERT INTO matches (round_id, player1_id, player2_id, status, scheduled_date) VALUES ($1, $2, $3, $4, $5)',
           [roundId, pair[0], pair[1], 'pending', dateStr]
         );
@@ -491,7 +491,7 @@ app.post('/api/seasons', authMiddleware, adminMiddleware, async (req, res) => {
 
 app.get('/api/seasons/active', async (req, res) => {
   try {
-    const result = await getPool().query(`
+    const result = await pool.query(`
       SELECT s.*,
         (SELECT COUNT(*) FROM season_players sp WHERE sp.season_id = s.id) AS player_count,
         (SELECT COUNT(*) FROM rounds r WHERE r.season_id = s.id) AS total_rounds,
@@ -508,7 +508,7 @@ app.get('/api/seasons/active', async (req, res) => {
 app.post('/api/seasons/:id/end', authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const now = new Date().toISOString();
-    await getPool().query("UPDATE seasons SET status = 'completed', ended_at = $1 WHERE id = $2", [now, req.params.id]);
+    await pool.query("UPDATE seasons SET status = 'completed', ended_at = $1 WHERE id = $2", [now, req.params.id]);
     res.json({ message: 'Season ended' });
   } catch (e) {
     res.status(500).json({ error: 'Server error' });
@@ -540,7 +540,7 @@ app.get('/api/matches', async (req, res) => {
     }
 
     query += ' ORDER BY r.round_number ASC, m.id ASC';
-    const result = await getPool().query(query);
+    const result = await pool.query(query);
     res.json(result.rows);
   } catch (e) {
     res.status(500).json({ error: 'Server error' });
@@ -549,7 +549,7 @@ app.get('/api/matches', async (req, res) => {
 
 app.get('/api/matches/round/:roundId', async (req, res) => {
   try {
-    const result = await getPool().query(`
+    const result = await pool.query(`
       SELECT m.id, m.round_id, m.player1_id, m.player2_id, m.winner_id, m.legend1, m.legend2, m.score, m.status, m.scheduled_date, m.rescheduled, m.played_date, p1.brawlhalla_name AS player1_name, p2.brawlhalla_name AS player2_name,
              u1.username AS player1_username, u2.username AS player2_username
       FROM matches m
@@ -567,10 +567,10 @@ app.get('/api/matches/round/:roundId', async (req, res) => {
 
 app.get('/api/rounds', async (req, res) => {
   try {
-    const seasonResult = await getPool().query("SELECT id FROM seasons WHERE status = 'active' LIMIT 1");
+    const seasonResult = await pool.query("SELECT id FROM seasons WHERE status = 'active' LIMIT 1");
     if (seasonResult.rows.length === 0) return res.json([]);
 
-    const result = await getPool().query(`
+    const result = await pool.query(`
       SELECT r.*,
         (SELECT COUNT(*) FROM matches m WHERE m.round_id = r.id) AS match_count,
         (SELECT COUNT(*) FROM matches m WHERE m.round_id = r.id AND m.status = 'completed') AS completed_count
@@ -587,7 +587,7 @@ app.patch('/api/matches/:id/result', authMiddleware, adminMiddleware, async (req
     const { winner_id, legend1, legend2, score, format } = req.body;
     if (!winner_id) return res.status(400).json({ error: 'winner_id required' });
 
-    const matchResult = await getPool().query('SELECT round_id, player1_id, player2_id FROM matches WHERE id = $1', [req.params.id]);
+    const matchResult = await pool.query('SELECT round_id, player1_id, player2_id FROM matches WHERE id = $1', [req.params.id]);
     if (matchResult.rows.length === 0) return res.status(404).json({ error: 'Match not found' });
 
     const match = matchResult.rows[0];
@@ -611,27 +611,27 @@ app.patch('/api/matches/:id/result', authMiddleware, adminMiddleware, async (req
     const nd = new Date();
     const playedDateStr = `${nd.getFullYear()}-${pad(nd.getMonth()+1)}-${pad(nd.getDate())} ${pad(nd.getHours())}:${pad(nd.getMinutes())}`;
 
-    await getPool().query(
+    await pool.query(
       `UPDATE matches SET winner_id = $1, legend1 = $2, legend2 = $3, score = $4, status = 'completed', played_date = $5
        WHERE id = $6`,
       [winner_id, legend1 || null, legend2 || null, score || null, playedDateStr, req.params.id]
     );
 
-    const roundResult = await getPool().query(
+    const roundResult = await pool.query(
       `UPDATE rounds SET status = 'completed'
        WHERE id = $1 AND (
          SELECT COUNT(*) FROM matches WHERE round_id = $1 AND status = 'pending'
        ) = 0`, [match.round_id]
     );
 
-    const hasMoreRounds = await getPool().query(`
+    const hasMoreRounds = await pool.query(`
       SELECT COUNT(*) AS pending FROM rounds WHERE season_id = (
         SELECT season_id FROM rounds WHERE id = $1
       ) AND status = 'pending'
     `, [match.round_id]);
 
     if (parseInt(hasMoreRounds.rows[0].pending) > 0) {
-      await getPool().query(`
+      await pool.query(`
         UPDATE rounds SET status = 'active'
         WHERE id = (
           SELECT id FROM rounds WHERE season_id = (
@@ -641,7 +641,7 @@ app.patch('/api/matches/:id/result', authMiddleware, adminMiddleware, async (req
       `, [match.round_id]);
     } else {
       const now2 = new Date().toISOString();
-      await getPool().query(`
+      await pool.query(`
         UPDATE seasons SET status = 'completed', ended_at = $1
         WHERE id = (SELECT season_id FROM rounds WHERE id = $2)
       `, [now2, match.round_id]);
@@ -658,7 +658,7 @@ app.patch('/api/matches/:id/result', authMiddleware, adminMiddleware, async (req
 
 app.get('/api/admin/matches/completed', authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const result = await getPool().query(`
+    const result = await pool.query(`
       SELECT m.id, m.round_id, r.round_number, m.player1_id, m.player2_id, m.winner_id,
              m.legend1, m.legend2, m.score, m.status, m.played_date, m.scheduled_date, m.rescheduled,
              p1.brawlhalla_name AS player1_name, p2.brawlhalla_name AS player2_name,
@@ -685,7 +685,7 @@ app.put('/api/admin/matches/:id/result', authMiddleware, adminMiddleware, async 
     const { winner_id, legend1, legend2, score, format } = req.body;
     if (!winner_id) return res.status(400).json({ error: 'winner_id required' });
 
-    const matchResult = await getPool().query('SELECT round_id, player1_id, player2_id, status FROM matches WHERE id = $1', [req.params.id]);
+    const matchResult = await pool.query('SELECT round_id, player1_id, player2_id, status FROM matches WHERE id = $1', [req.params.id]);
     if (matchResult.rows.length === 0) return res.status(404).json({ error: 'Match not found' });
 
     const match = matchResult.rows[0];
@@ -705,7 +705,7 @@ app.put('/api/admin/matches/:id/result', authMiddleware, adminMiddleware, async 
       });
     }
 
-    await getPool().query(
+    await pool.query(
       `UPDATE matches SET winner_id = $1, legend1 = $2, legend2 = $3, score = $4, status = 'completed'
        WHERE id = $5`,
       [winner_id, legend1 || null, legend2 || null, score || null, req.params.id]
@@ -722,20 +722,20 @@ app.put('/api/admin/matches/:id/result', authMiddleware, adminMiddleware, async 
 
 app.post('/api/admin/matches/:id/revert', authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const matchResult = await getPool().query('SELECT round_id, status FROM matches WHERE id = $1', [req.params.id]);
+    const matchResult = await pool.query('SELECT round_id, status FROM matches WHERE id = $1', [req.params.id]);
     if (matchResult.rows.length === 0) return res.status(404).json({ error: 'Match not found' });
     if (matchResult.rows[0].status !== 'completed') return res.status(400).json({ error: 'Match is not completed' });
 
     const roundId = matchResult.rows[0].round_id;
 
-    await getPool().query(
+    await pool.query(
       `UPDATE matches SET winner_id = NULL, score = NULL, legend1 = NULL, legend2 = NULL,
        status = 'pending', played_date = NULL
        WHERE id = $1`,
       [req.params.id]
     );
 
-    await getPool().query(
+    await pool.query(
       "UPDATE rounds SET status = 'active' WHERE id = $1",
       [roundId]
     );
@@ -752,10 +752,10 @@ app.patch('/api/matches/:id/reschedule', authMiddleware, adminMiddleware, async 
     const { scheduled_date } = req.body;
     if (!scheduled_date) return res.status(400).json({ error: 'scheduled_date required' });
 
-    const matchResult = await getPool().query('SELECT id FROM matches WHERE id = $1', [req.params.id]);
+    const matchResult = await pool.query('SELECT id FROM matches WHERE id = $1', [req.params.id]);
     if (matchResult.rows.length === 0) return res.status(404).json({ error: 'Match not found' });
 
-    await getPool().query(
+    await pool.query(
       'UPDATE matches SET scheduled_date = $1, rescheduled = 1 WHERE id = $2',
       [scheduled_date, req.params.id]
     );
@@ -770,7 +770,7 @@ app.patch('/api/matches/:id/reschedule', authMiddleware, adminMiddleware, async 
 
 app.get('/api/seasons/all', async (req, res) => {
   try {
-    const result = await getPool().query(`
+    const result = await pool.query(`
       SELECT s.*,
         (SELECT p.brawlhalla_name FROM season_players sp
          JOIN players p ON p.id = sp.player_id
@@ -794,7 +794,7 @@ app.get('/api/seasons/all', async (req, res) => {
 
 async function computeStandings(seasonId, res) {
   try {
-    const result = await getPool().query(`
+    const result = await pool.query(`
       SELECT p.id, p.brawlhalla_name, p.tier, u.username,
         COALESCE(SUM(CASE WHEN m.winner_id = p.id THEN 3 ELSE 0 END), 0) AS points,
         COUNT(*) FILTER (WHERE m.status = 'completed' AND m.winner_id = p.id) AS wins,
@@ -831,15 +831,15 @@ app.get('/api/standings', async (req, res) => {
     const requestedSeasonId = req.query.season_id ? parseInt(req.query.season_id) : null;
 
     if (requestedSeasonId) {
-      const seasonCheck = await getPool().query('SELECT id, status FROM seasons WHERE id = $1', [requestedSeasonId]);
+      const seasonCheck = await pool.query('SELECT id, status FROM seasons WHERE id = $1', [requestedSeasonId]);
       if (seasonCheck.rows.length === 0) return res.status(404).json({ error: 'Season not found' });
       await computeStandings(requestedSeasonId, res);
       return;
     }
 
-    const seasonResult = await getPool().query("SELECT id FROM seasons WHERE status = 'active' LIMIT 1");
+    const seasonResult = await pool.query("SELECT id FROM seasons WHERE status = 'active' LIMIT 1");
     if (seasonResult.rows.length === 0) {
-      const allPlayers = await getPool().query(`
+      const allPlayers = await pool.query(`
         SELECT p.id, p.brawlhalla_name, p.tier, u.username, 0 AS points, 0 AS wins, 0 AS losses, 0 AS matches_played, 0 AS difference, 0.00 AS winrate
         FROM players p JOIN users u ON u.id = p.user_id WHERE p.status = 'approved' AND p.brawlhalla_id IS NOT NULL ORDER BY p.created_at ASC
       `);
@@ -856,13 +856,13 @@ app.get('/api/standings', async (req, res) => {
 // ─── SEED ADMIN ───
 
 async function seedAdmin() {
-  const { rows } = await getPool().query('SELECT id FROM users WHERE role = $1 LIMIT 1', ['admin']);
+  const { rows } = await pool.query('SELECT id FROM users WHERE role = $1 LIMIT 1', ['admin']);
   if (rows.length === 0) {
     const hash = await bcrypt.hash(process.env.ADMIN_PASSWORD || 'admin123', 10);
-    const userResult = await getPool().query('INSERT INTO users (username, password_hash, role) VALUES ($1, $2, $3) RETURNING id',
+    const userResult = await pool.query('INSERT INTO users (username, password_hash, role) VALUES ($1, $2, $3) RETURNING id',
       [process.env.ADMIN_USERNAME || 'admin', hash, 'admin']);
     const userId = userResult.rows[0].id;
-    await getPool().query(
+    await pool.query(
       `INSERT INTO players (user_id, brawlhalla_id, brawlhalla_name, status)
        VALUES ($1, NULL, $2, 'approved')`,
       [userId, process.env.ADMIN_USERNAME || 'admin']
@@ -874,7 +874,6 @@ async function seedAdmin() {
 // ─── START ───
 
 async function start() {
-  await initPool();
   await initDB();
   await seedAdmin();
   app.listen(PORT, () => {
