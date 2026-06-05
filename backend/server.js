@@ -82,13 +82,13 @@ app.post('/api/auth/login', async (req, res) => {
     let userResult;
     if (!isNaN(brawlhallaIdNum)) {
       userResult = await pool.query(`
-        SELECT u.id, u.username, u.password_hash, u.role, p.brawlhalla_id
+        SELECT u.id, u.username, u.password_hash, u.role, p.id AS player_id, p.brawlhalla_id
         FROM users u JOIN players p ON p.user_id = u.id
         WHERE p.brawlhalla_id = $1
       `, [brawlhallaIdNum]);
     } else {
       userResult = await pool.query(`
-        SELECT u.id, u.username, u.password_hash, u.role, p.brawlhalla_id
+        SELECT u.id, u.username, u.password_hash, u.role, p.id AS player_id, p.brawlhalla_id
         FROM users u LEFT JOIN players p ON p.user_id = u.id
         WHERE u.username = $1
       `, [username]);
@@ -107,7 +107,7 @@ app.post('/api/auth/login', async (req, res) => {
     }
 
     const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
-    res.json({ token, username: user.username, role: user.role, brawlhalla_id: user.brawlhalla_id });
+    res.json({ token, username: user.username, role: user.role, player_id: user.player_id, brawlhalla_id: user.brawlhalla_id });
   } catch (e) {
     console.error('Login error:', e);
     res.status(500).json({ error: 'Server error' });
@@ -1294,7 +1294,7 @@ app.get('/api/tournaments/:id/players', async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT tp.id, tp.tournament_id, tp.player_id, tp.group_name, tp.status, tp.seed, tp.created_at,
-             p.brawlhalla_name, p.tier, p.rating, u.username
+             p.brawlhalla_id, p.brawlhalla_name, p.tier, p.rating, u.username
       FROM tournament_players tp
       JOIN players p ON p.id = tp.player_id
       JOIN users u ON u.id = p.user_id

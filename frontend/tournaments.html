@@ -393,6 +393,7 @@ async function loadTournaments() {
   }
 
   renderTournaments();
+  storeTournamentStatuses();
 }
 
 function renderTournaments() {
@@ -434,8 +435,12 @@ function renderTournaments() {
     const loggedIn = isLoggedIn();
     let joinHtml = '';
     if (loggedIn && isActive) {
+      const myPid = getPlayerId();
       const myBhId = getBrawlhallaId();
-      const myPlayer = t._players?.find(p => String(p.brawlhalla_id || '') === String(myBhId || ''));
+      const myPlayer = t._players?.find(p =>
+        (myPid && p.player_id === myPid) ||
+        String(p.brawlhalla_id || '') === String(myBhId || '')
+      );
       if (!myPlayer) {
         joinHtml = `<button class="join-tournament-btn" onclick="event.preventDefault(); event.stopPropagation(); joinTournament(${t.id}, this)">UNIRSE AL TORNEO</button>`;
       } else if (myPlayer.status === 'pending') {
@@ -476,6 +481,48 @@ function renderTournaments() {
 
   html += '</div>';
   container.innerHTML = html;
+}
+
+// Check tournament request status changes for notifications
+function checkTournamentStatusChanges() {
+  const myPid = getPlayerId();
+  if (!myPid) return;
+  const saved = localStorage.getItem('tournament_statuses');
+  if (!saved) return;
+  const prev = JSON.parse(saved);
+  // prev is fetched from the current allTournaments data (handled in loadTournaments)
+}
+
+// Store tournament statuses for change detection
+function storeTournamentStatuses() {
+  const myPid = getPlayerId();
+  if (!myPid) return;
+  const statuses = {};
+  for (const t of allTournaments) {
+    const myPlayer = t._players?.find(p =>
+      (myPid && p.player_id === myPid)
+    );
+    if (myPlayer) {
+      statuses[t.id] = myPlayer.status;
+    }
+  }
+  const prevStr = localStorage.getItem('tournament_statuses');
+  localStorage.setItem('tournament_statuses', JSON.stringify(statuses));
+  if (prevStr) {
+    try {
+      const prev = JSON.parse(prevStr);
+      for (const [tid, newStatus] of Object.entries(statuses)) {
+        const oldStatus = prev[tid];
+        if (oldStatus && oldStatus !== newStatus) {
+          if (newStatus === 'approved') {
+            showNotification('✅ Has sido aceptado en el torneo "' + (allTournaments.find(t => t.id == tid)?.name || '') + '"', 'success');
+          } else if (newStatus === 'rejected') {
+            showNotification('❌ Tu solicitud para el torneo "' + (allTournaments.find(t => t.id == tid)?.name || '') + '" fue rechazada', 'error');
+          }
+        }
+      }
+    } catch {}
+  }
 }
 
 async function joinTournament(id, btn) {

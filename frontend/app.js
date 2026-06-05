@@ -20,10 +20,16 @@ function getBrawlhallaId() {
   return localStorage.getItem('brawlhalla_id');
 }
 
-function setSession(token, username, role, brawlhallaId) {
+function getPlayerId() {
+  const id = localStorage.getItem('player_id');
+  return id ? parseInt(id) : null;
+}
+
+function setSession(token, username, role, playerId, brawlhallaId) {
   localStorage.setItem('token', token);
   localStorage.setItem('username', username);
   localStorage.setItem('role', role);
+  if (playerId) localStorage.setItem('player_id', playerId);
   if (brawlhallaId) localStorage.setItem('brawlhalla_id', brawlhallaId);
 }
 
@@ -97,7 +103,7 @@ async function login(username, password) {
     body: JSON.stringify({ username, password })
   });
   if (ok && data.token) {
-    setSession(data.token, data.username, data.role, data.brawlhalla_id);
+    setSession(data.token, data.username, data.role, data.player_id, data.brawlhalla_id);
   }
   return { ok, data };
 }
