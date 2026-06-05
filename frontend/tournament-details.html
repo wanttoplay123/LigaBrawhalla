@@ -125,37 +125,39 @@
 /* ─── GROUP STANDINGS ─── */
 .groups-container {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  gap: 24px;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
   max-width: 1200px;
   margin: 0 auto;
 }
 .group-card {
   background: var(--card-bg);
   border: 1px solid var(--card-border);
-  border-radius: 16px;
+  border-radius: 12px;
   overflow: hidden;
   backdrop-filter: blur(12px);
+  min-width: 0;
 }
 .group-card-header {
-  padding: 18px 24px;
+  padding: 14px 16px;
   background: rgba(255,255,255,0.02);
   border-bottom: 1px solid rgba(255,255,255,0.04);
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
 }
 .group-letter {
-  width: 40px;
-  height: 40px;
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 10px;
+  border-radius: 8px;
   font-family: 'Bebas Neue', sans-serif;
-  font-size: 24px;
+  font-size: 18px;
   color: #fff;
-  letter-spacing: 2px;
+  letter-spacing: 1px;
+  flex-shrink: 0;
 }
 .group-letter-A { background: linear-gradient(135deg, #7B2FBE, #9333EA); }
 .group-letter-B { background: linear-gradient(135deg, #1E40AF, #3B82F6); }
@@ -164,45 +166,47 @@
 .group-letter-E { background: linear-gradient(135deg, #DC2626, #EF4444); }
 .group-card-title {
   font-family: 'Bebas Neue', sans-serif;
-  font-size: 22px;
-  letter-spacing: 3px;
+  font-size: 18px;
+  letter-spacing: 2px;
   color: #fff;
 }
-.group-table { width: 100%; border-collapse: collapse; }
+.group-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
 .group-table th {
-  padding: 10px 12px;
+  padding: 8px 4px;
   font-family: 'Orbitron', sans-serif;
-  font-size: 9px;
-  letter-spacing: 1px;
+  font-size: 8px;
+  letter-spacing: 0.5px;
   text-transform: uppercase;
   color: rgba(255,255,255,0.3);
   text-align: center;
   border-bottom: 1px solid rgba(255,255,255,0.04);
+  white-space: nowrap;
 }
 .group-table th:nth-child(2) { text-align: left; }
 .group-table td {
-  padding: 12px;
-  font-size: 13px;
+  padding: 8px 4px;
+  font-size: 12px;
   text-align: center;
   border-bottom: 1px solid rgba(255,255,255,0.03);
   color: rgba(255,255,255,0.7);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.group-table td:nth-child(2) { text-align: left; font-weight: 600; color: #fff; }
+.group-table td:nth-child(2) { text-align: left; font-weight: 600; color: #fff; max-width: 120px; }
 .group-table tr:last-child td { border-bottom: none; }
 
 .group-table tr.qualify-direct td:first-child { border-left: 3px solid #22c55e; }
-.group-table tr.qualify-repechaje td:first-child { border-left: 3px solid #F59E0B; }
 .group-table tr.qualify-eliminated td:first-child { border-left: 3px solid #ef4444; }
 
 .group-pos {
   font-family: 'Bebas Neue', sans-serif;
-  font-size: 20px;
+  font-size: 16px;
 }
 .group-pos.pos-1, .group-pos.pos-2 { color: #22c55e; }
-.group-pos.pos-3, .group-pos.pos-4 { color: #F59E0B; }
-.group-pos.pos-5 { color: #ef4444; }
+.group-pos.pos-3 { color: #ef4444; }
 
-.group-pts { font-family: 'Bebas Neue', sans-serif; font-size: 20px; color: var(--gold) !important; }
+.group-pts { font-family: 'Bebas Neue', sans-serif; font-size: 16px; color: var(--gold) !important; }
 
 /* ─── PLAYERS LIST ─── */
 .players-grid {
@@ -256,6 +260,8 @@
 .player-card-info .group-A { background: rgba(123,47,190,0.2); color: var(--purple-light); }
 .player-card-info .group-B { background: rgba(30,64,175,0.2); color: #60a5fa; }
 .player-card-info .group-C { background: rgba(180,83,9,0.2); color: #F59E0B; }
+.player-card-info .group-D { background: rgba(5,150,105,0.2); color: #34D399; }
+.player-card-info .group-E { background: rgba(220,38,38,0.2); color: #F87171; }
 .player-card-status {
   margin-left: auto;
   font-family: 'Orbitron', sans-serif;
