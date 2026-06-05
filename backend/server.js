@@ -906,10 +906,10 @@ app.get('/api/hall-of-fame', async (req, res) => {
         FROM seasons s
         LEFT JOIN LATERAL (
           SELECT p.id AS player_id, p.brawlhalla_name,
-            COUNT(*) FILTER (WHERE m.status = 'completed' AND m.winner_id = p.id) AS wins,
-            COUNT(*) FILTER (WHERE m.status = 'completed' AND m.winner_id IS NOT NULL AND m.winner_id != p.id AND (m.player1_id = p.id OR m.player2_id = p.id)) AS losses,
+            COALESCE(SUM(CASE WHEN m.status = 'completed' AND m.winner_id = p.id THEN 1 ELSE 0 END), 0) AS wins,
+            COALESCE(SUM(CASE WHEN m.status = 'completed' AND m.winner_id IS NOT NULL AND m.winner_id != p.id AND (m.player1_id = p.id OR m.player2_id = p.id) THEN 1 ELSE 0 END), 0) AS losses,
             COALESCE(SUM(CASE WHEN m.winner_id = p.id THEN 3 ELSE 0 END), 0) AS points,
-            COUNT(*) FILTER (WHERE m.status = 'completed' AND (m.player1_id = p.id OR m.player2_id = p.id)) AS matches_played
+            COALESCE(SUM(CASE WHEN m.status = 'completed' AND (m.player1_id = p.id OR m.player2_id = p.id) THEN 1 ELSE 0 END), 0) AS matches_played
           FROM season_players sp
           JOIN players p ON p.id = sp.player_id
           LEFT JOIN matches m ON (m.player1_id = p.id OR m.player2_id = p.id)
@@ -937,20 +937,19 @@ async function computeStandings(seasonId, res) {
     const result = await pool.query(`
       SELECT p.id, p.brawlhalla_name, p.tier, u.username,
         COALESCE(SUM(CASE WHEN m.winner_id = p.id THEN 3 ELSE 0 END), 0) AS points,
-        COUNT(*) FILTER (WHERE m.status = 'completed' AND m.winner_id = p.id) AS wins,
-        COUNT(*) FILTER (WHERE m.status = 'completed' AND m.winner_id IS NOT NULL AND m.winner_id != p.id AND (m.player1_id = p.id OR m.player2_id = p.id)) AS losses,
-        COUNT(*) FILTER (WHERE m.status = 'completed' AND (m.player1_id = p.id OR m.player2_id = p.id)) AS matches_played,
-        COUNT(*) FILTER (WHERE m.status = 'completed' AND m.winner_id = p.id) -
-        COUNT(*) FILTER (WHERE m.status = 'completed' AND m.winner_id IS NOT NULL AND m.winner_id != p.id AND (m.player1_id = p.id OR m.player2_id = p.id)) AS difference,
+        COALESCE(SUM(CASE WHEN m.status = 'completed' AND m.winner_id = p.id THEN 1 ELSE 0 END), 0) AS wins,
+        COALESCE(SUM(CASE WHEN m.status = 'completed' AND m.winner_id IS NOT NULL AND m.winner_id != p.id AND (m.player1_id = p.id OR m.player2_id = p.id) THEN 1 ELSE 0 END), 0) AS losses,
+        COALESCE(SUM(CASE WHEN m.status = 'completed' AND (m.player1_id = p.id OR m.player2_id = p.id) THEN 1 ELSE 0 END), 0) AS matches_played,
+        COALESCE(SUM(CASE WHEN m.status = 'completed' AND m.winner_id = p.id THEN 1 ELSE 0 END), 0) - COALESCE(SUM(CASE WHEN m.status = 'completed' AND m.winner_id IS NOT NULL AND m.winner_id != p.id AND (m.player1_id = p.id OR m.player2_id = p.id) THEN 1 ELSE 0 END), 0) AS difference,
         CASE
-          WHEN COUNT(*) FILTER (WHERE m.status = 'completed' AND (m.player1_id = p.id OR m.player2_id = p.id)) > 0
+          WHEN COALESCE(SUM(CASE WHEN m.status = 'completed' AND (m.player1_id = p.id OR m.player2_id = p.id) THEN 1 ELSE 0 END), 0) > 0
           THEN ROUND(
-            CAST(COUNT(*) FILTER (WHERE m.status = 'completed' AND m.winner_id = p.id) AS REAL) /
-            CAST(COUNT(*) FILTER (WHERE m.status = 'completed' AND (m.player1_id = p.id OR m.player2_id = p.id)) AS REAL) * 100, 2
+            CAST(COALESCE(SUM(CASE WHEN m.status = 'completed' AND m.winner_id = p.id THEN 1 ELSE 0 END), 0) AS REAL) /
+            CAST(COALESCE(SUM(CASE WHEN m.status = 'completed' AND (m.player1_id = p.id OR m.player2_id = p.id) THEN 1 ELSE 0 END), 0) AS REAL) * 100, 2
           )
           ELSE 0
         END AS winrate,
-        sp.initial_position
+        COALESCE(sp.initial_position, 0) AS initial_position
       FROM season_players sp
       JOIN players p ON p.id = sp.player_id
       JOIN users u ON u.id = p.user_id
