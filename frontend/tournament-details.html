@@ -593,32 +593,29 @@
   position: relative;
   cursor: help;
 }
-.t-badge-format::after {
-  content: '5 Jugadores por grupo · Round-robin · Top 1 y 2 de cada grupo pasa a fase de torneo LIGA · Victoria = 3 pts · Desempate por KOs y daño';
-  position: absolute;
-  top: calc(100% + 10px);
-  left: 0;
-  background: rgba(12,12,28,0.95);
-  border: 1px solid var(--card-border);
-  border-radius: 8px;
-  padding: 12px 16px;
+.format-tooltip {
+  position: fixed;
+  background: rgba(12,12,28,0.97);
+  border: 1px solid rgba(168,85,247,0.35);
+  border-radius: 10px;
+  padding: 14px 18px;
   font-family: 'Rajdhani', sans-serif;
   font-size: 13px;
   font-weight: 500;
   letter-spacing: 0.5px;
-  color: rgba(255,255,255,0.7);
-  line-height: 1.6;
-  width: 280px;
+  color: rgba(255,255,255,0.75);
+  line-height: 1.7;
+  width: 300px;
   white-space: normal;
   opacity: 0;
   visibility: hidden;
-  transform: translateY(-4px);
+  transform: translateY(-6px);
   transition: all 0.25s ease;
   pointer-events: none;
-  z-index: 10;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  z-index: 9999;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.6), 0 0 20px rgba(123,47,190,0.15);
 }
-.t-badge-format:hover::after {
+.format-tooltip.visible {
   opacity: 1;
   visibility: visible;
   transform: translateY(0);
@@ -727,6 +724,46 @@ let tournament = null;
 let players = [];
 let matches = [];
 let standings = {};
+
+/* ─── FORMAT TOOLTIP ─── */
+let tooltipEl = null;
+function createTooltip() {
+  if (tooltipEl) return;
+  tooltipEl = document.createElement('div');
+  tooltipEl.className = 'format-tooltip';
+  tooltipEl.innerHTML = '👥 5 Jugadores por grupo<br>⚔️ Round-robin dentro de cada grupo<br>🏆 Top 1 y 2 de cada grupo pasa a fase de torneo LIGA<br>📊 Victoria = 3 puntos · Derrota = 0<br>🎯 Desempate por diferencia de KOs y daño';
+  document.body.appendChild(tooltipEl);
+}
+
+function showTooltip(badge) {
+  createTooltip();
+  const rect = badge.getBoundingClientRect();
+  let top = rect.bottom + 10;
+  let left = rect.left;
+  if (left + 300 > window.innerWidth) left = window.innerWidth - 320;
+  if (left < 10) left = 10;
+  tooltipEl.style.top = top + 'px';
+  tooltipEl.style.left = left + 'px';
+  tooltipEl.classList.add('visible');
+}
+
+function hideTooltip() {
+  if (tooltipEl) tooltipEl.classList.remove('visible');
+}
+
+document.addEventListener('mouseover', (e) => {
+  if (e.target.closest('.t-badge-format')) {
+    showTooltip(e.target.closest('.t-badge-format'));
+  } else if (!e.target.closest('.format-tooltip')) {
+    hideTooltip();
+  }
+});
+
+document.addEventListener('mouseout', (e) => {
+  if (e.target.closest('.t-badge-format') && !e.relatedTarget?.closest('.format-tooltip')) {
+    hideTooltip();
+  }
+});
 
 async function loadTournament() {
   if (!tournamentId) {
