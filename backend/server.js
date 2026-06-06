@@ -1902,7 +1902,7 @@ app.post('/api/tournaments/:id/generate-repechaje', authMiddleware, adminMiddlew
   }
 });
 
-async function generatePlayoffsNewFormat(client, tournamentId) {
+async function finalizeTournamentNewFormat(client, tournamentId) {
   const pendingCount = await client.query(`
     SELECT COUNT(*) FROM tournament_matches tm
     JOIN tournament_rounds tr ON tr.id = tm.round_id
@@ -1962,7 +1962,7 @@ async function generatePlayoffsNewFormat(client, tournamentId) {
 
   for (const g of Object.keys(groups)) groups[g].sort(sortFn);
 
-  // Notify eliminated players (3rd place in each group)
+  // Send elimination messages to 3rd place in each group
   const msg = 'Gracias por participar. Sigue mejorando para poder participar en la liga, no te rindas, habrán más torneos próximamente.';
   for (const g of Object.keys(groups)) {
     if (groups[g].length >= 3) {
@@ -1973,82 +1973,30 @@ async function generatePlayoffsNewFormat(client, tournamentId) {
     }
   }
 
-  const allQualified = [];
+  // Get or create active season for league
+  let seasonRes = await client.query("SELECT id FROM seasons WHERE status = 'active' LIMIT 1");
+  let seasonId;
+  if (seasonRes.rows.length === 0) {
+    const t = await client.query('SELECT name FROM tournaments WHERE id = $1', [tournamentId]);
+    const seasonName = t.rows[0].name;
+    const newSeason = await client.query('INSERT INTO seasons (name) VALUES ($1) RETURNING id', [seasonName]);
+    seasonId = newSeason.rows[0].id;
+  } else {
+    seasonId = seasonRes.rows[0].id;
+  }
+
+  // Add 1st and 2nd place from each group to the season
   for (const g of Object.keys(groups)) {
-    allQualified.push(groups[g][0]); // 1st place
-    allQualified.push(groups[g][1]); // 2nd place
+    for (let pos = 0; pos < 2 && pos < groups[g].length; pos++) {
+      await client.query(
+        'INSERT INTO season_players (season_id, player_id, initial_position) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
+        [seasonId, groups[g][pos].player_id, pos + 1]
+      );
+    }
   }
 
-  const globalSort = (a, b) => {
-    if (b.points !== a.points) return b.points - a.points;
-    if (b.kos !== a.kos) return b.kos - a.kos;
-    const diffB = b.damage_dealt - b.damage_taken;
-    const diffA = a.damage_dealt - a.damage_taken;
-    if (diffB !== diffA) return diffB - diffA;
-    return a.seed - b.seed;
-  };
-  allQualified.sort(globalSort);
-
-  const seeded = allQualified.map(p => p.player_id);
-
-  const r4 = await client.query(
-    "INSERT INTO tournament_rounds (tournament_id, round_number, round_name, status) VALUES ($1, 4, 'Playoffs - Ronda 1 (Play-in)', 'active') RETURNING id",
-    [tournamentId]
-  );
-  const r5 = await client.query(
-    "INSERT INTO tournament_rounds (tournament_id, round_number, round_name, status) VALUES ($1, 5, 'Playoffs - Cuartos de Final', 'pending') RETURNING id",
-    [tournamentId]
-  );
-  const r6 = await client.query(
-    "INSERT INTO tournament_rounds (tournament_id, round_number, round_name, status) VALUES ($1, 6, 'Playoffs - Semifinales', 'pending') RETURNING id",
-    [tournamentId]
-  );
-  const r7 = await client.query(
-    "INSERT INTO tournament_rounds (tournament_id, round_number, round_name, status) VALUES ($1, 7, 'Playoffs - Gran Final', 'pending') RETURNING id",
-    [tournamentId]
-  );
-
-  const r4Id = r4.rows[0].id;
-  const r5Id = r5.rows[0].id;
-  const r6Id = r6.rows[0].id;
-  const r7Id = r7.rows[0].id;
-
-  // Play-in (round 4): #3 vs #10, #4 vs #9, #5 vs #8, #6 vs #7
-  // Indices: 0, 1, 2, 3
-  const playInMatches = [];
-  for (let i = 3; i <= 6; i++) {
-    const res = await client.query(
-      "INSERT INTO tournament_matches (round_id, player1_id, player2_id, status) VALUES ($1, $2, $3, 'pending') RETURNING id",
-      [r4Id, seeded[i - 1], seeded[10 - i + 1]] // #3 vs #10, #4 vs #9, #5 vs #8, #6 vs #7
-    );
-    playInMatches.push(res.rows[0]);
-  }
-
-  // Cuartos (round 5): 2 matches (TBD, filled by play-in winners via propagation)
-  const qfMatches = [];
-  for (let i = 0; i < 2; i++) {
-    const res = await client.query(
-      "INSERT INTO tournament_matches (round_id, player1_id, player2_id, status) VALUES ($1, NULL, NULL, 'pending') RETURNING id",
-      [r5Id]
-    );
-    qfMatches.push(res.rows[0].id);
-  }
-
-  // Semifinales (round 6): 2 matches (#1 and #2 pre-filled)
-  const sf1 = await client.query(
-    "INSERT INTO tournament_matches (round_id, player1_id, player2_id, status) VALUES ($1, $2, NULL, 'pending') RETURNING id",
-    [r6Id, seeded[0]]
-  );
-  const sf2 = await client.query(
-    "INSERT INTO tournament_matches (round_id, player1_id, player2_id, status) VALUES ($1, $2, NULL, 'pending') RETURNING id",
-    [r6Id, seeded[1]]
-  );
-
-  // Gran Final (round 7): 1 match (TBD)
-  await client.query(
-    "INSERT INTO tournament_matches (round_id, player1_id, player2_id, status) VALUES ($1, NULL, NULL, 'pending')",
-    [r7Id]
-  );
+  // Mark tournament as completed
+  await client.query("UPDATE tournaments SET status = 'completed' WHERE id = $1", [tournamentId]);
 }
 
 async function generatePlayoffsOldFormat(client, tournamentId) {
@@ -2192,16 +2140,12 @@ app.post('/api/tournaments/:id/generate-playoffs', authMiddleware, adminMiddlewa
     }
     if (tournament.rows[0].format !== 'custom_3groups') {
       await client.query('ROLLBACK');
-      return res.status(400).json({ error: 'Playoffs only available for custom_3groups format' });
+      return res.status(400).json({ error: 'This action is only available for custom_3groups format' });
     }
 
-    const roundCheck = await client.query(
-      "SELECT id FROM tournament_rounds WHERE tournament_id = $1 AND round_name LIKE 'Playoffs%'",
-      [tournamentId]
-    );
-    if (roundCheck.rows.length > 0) {
+    if (tournament.rows[0].status === 'completed') {
       await client.query('ROLLBACK');
-      return res.status(400).json({ error: 'Playoffs already generated' });
+      return res.status(400).json({ error: 'Tournament already finalized' });
     }
 
     // Detect if this is old format (3 groups) or new format (5 groups)
@@ -2212,13 +2156,13 @@ app.post('/api/tournaments/:id/generate-playoffs', authMiddleware, adminMiddlewa
     const numGroups = parseInt(groupCount.rows[0].cnt);
 
     if (numGroups === 5) {
-      await generatePlayoffsNewFormat(client, tournamentId);
+      await finalizeTournamentNewFormat(client, tournamentId);
     } else {
       await generatePlayoffsOldFormat(client, tournamentId);
     }
 
     await client.query('COMMIT');
-    res.json({ message: 'Playoffs bracket generated successfully' });
+    res.json({ message: '¡Jugadores clasificados a la liga exitosamente!' });
   } catch (e) {
     await client.query('ROLLBACK');
     console.error(e);
