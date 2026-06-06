@@ -126,6 +126,14 @@ async function initDB() {
         read BOOLEAN DEFAULT false,
         created_at TIMESTAMPTZ DEFAULT NOW()
       );
+      CREATE TABLE IF NOT EXISTS tournament_qualifiers (
+        id SERIAL PRIMARY KEY,
+        tournament_id INTEGER REFERENCES tournaments(id) ON DELETE CASCADE,
+        player_id INTEGER REFERENCES players(id) ON DELETE CASCADE,
+        position INTEGER,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE(tournament_id, player_id)
+      );
 
       DELETE FROM matches WHERE status = 'cancelled';
 

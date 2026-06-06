@@ -483,13 +483,27 @@ app.post('/api/seasons', authMiddleware, adminMiddleware, async (req, res) => {
     const activeSeason = await pool.query("SELECT id FROM seasons WHERE status = 'active'");
     if (activeSeason.rows.length > 0) return res.status(400).json({ error: 'An active season already exists' });
 
-    const approvedPlayers = await pool.query("SELECT id FROM players WHERE status = 'approved' AND brawlhalla_id IS NOT NULL");
-    if (approvedPlayers.rows.length < 2) return res.status(400).json({ error: 'Need at least 2 approved players' });
+    // Check for tournament qualifiers first
+    const qualifiers = await pool.query(
+      'SELECT DISTINCT player_id, position FROM tournament_qualifiers ORDER BY position ASC'
+    );
+
+    let playerIds;
+    if (qualifiers.rows.length >= 2) {
+      // Use qualified tournament players
+      playerIds = qualifiers.rows.map(r => r.player_id);
+      // Clear qualifiers after use
+      await pool.query('DELETE FROM tournament_qualifiers');
+    } else {
+      // Fallback: use all approved players
+      const approvedPlayers = await pool.query("SELECT id FROM players WHERE status = 'approved' AND brawlhalla_id IS NOT NULL");
+      if (approvedPlayers.rows.length < 2) return res.status(400).json({ error: 'Need at least 2 approved players' });
+      playerIds = approvedPlayers.rows.map(r => r.id);
+    }
 
     const seasonResult = await pool.query('INSERT INTO seasons (name) VALUES ($1) RETURNING id', [name]);
     const seasonId = seasonResult.rows[0].id;
 
-    const playerIds = approvedPlayers.rows.map(r => r.id);
     const shuffled = [...playerIds].sort(() => Math.random() - 0.5);
 
     for (let i = 0; i < shuffled.length; i++) {
@@ -1984,17 +1998,13 @@ async function finalizeTournamentNewFormat(client, tournamentId) {
     }
   }
 
-  // Use active season (must exist, checked before calling this function)
-  const seasonRes = await client.query("SELECT id FROM seasons WHERE status = 'active' LIMIT 1");
-  const seasonId = seasonRes.rows[0].id;
-
-  // Add 1st and 2nd place from each group to the active season
+  // Store qualified players (top 2 per group) in tournament_qualifiers
   let globalPos = 1;
   for (const g of Object.keys(groups)) {
     for (let pos = 0; pos < 2 && pos < groups[g].length; pos++) {
       await client.query(
-        'INSERT INTO season_players (season_id, player_id, initial_position) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
-        [seasonId, groups[g][pos].player_id, globalPos]
+        'INSERT INTO tournament_qualifiers (tournament_id, player_id, position) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
+        [tournamentId, groups[g][pos].player_id, globalPos]
       );
       globalPos++;
     }
@@ -2161,19 +2171,13 @@ app.post('/api/tournaments/:id/generate-playoffs', authMiddleware, adminMiddlewa
     const numGroups = parseInt(groupCount.rows[0].cnt);
 
     if (numGroups === 5) {
-      // Require an active season
-      const seasonCheck = await client.query("SELECT id FROM seasons WHERE status = 'active' LIMIT 1");
-      if (seasonCheck.rows.length === 0) {
-        await client.query('ROLLBACK');
-        return res.status(400).json({ error: 'Debes crear una temporada/liga activa primero antes de pasar los clasificados' });
-      }
       await finalizeTournamentNewFormat(client, tournamentId);
     } else {
       await generatePlayoffsOldFormat(client, tournamentId);
     }
 
     await client.query('COMMIT');
-    res.json({ message: '¡Jugadores clasificados a la liga exitosamente!' });
+    res.json({ message: '¡Jugadores clasificados! Ahora puedes crear una temporada/liga y los 10 clasificados se agregarán automáticamente.' });
   } catch (e) {
     await client.query('ROLLBACK');
     console.error(e);

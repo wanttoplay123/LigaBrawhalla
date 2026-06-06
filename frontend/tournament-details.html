@@ -170,7 +170,11 @@
   letter-spacing: 2px;
   color: #fff;
 }
-.group-table { width: 100%; border-collapse: collapse; }
+.group-table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.group-table-scroll::-webkit-scrollbar { height: 6px; }
+.group-table-scroll::-webkit-scrollbar-track { background: rgba(255,255,255,0.02); border-radius: 3px; }
+.group-table-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
+.group-table { width: 100%; border-collapse: collapse; min-width: 650px; }
 .group-table th {
   padding: 10px 6px;
   font-family: 'Orbitron', sans-serif;
@@ -773,6 +777,7 @@ function renderGroups() {
       <div class="group-card-header">
         <div class="group-letter group-letter-${groupName}">GRUPO ${groupName}</div>
       </div>
+      <div class="group-table-scroll">
       <table class="group-table">
         <thead>
           <tr>
@@ -812,6 +817,7 @@ function renderGroups() {
     html += `
         </tbody>
       </table>
+      </div>
     </div>`;
   }
 
