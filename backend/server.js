@@ -1903,6 +1903,17 @@ app.post('/api/tournaments/:id/generate-repechaje', authMiddleware, adminMiddlew
 });
 
 async function finalizeTournamentNewFormat(client, tournamentId) {
+  // Clean up any leftover playoff rounds from previous deploys
+  await client.query(`
+    DELETE FROM tournament_matches WHERE round_id IN (
+      SELECT id FROM tournament_rounds WHERE tournament_id = $1 AND round_number > 3
+    )
+  `, [tournamentId]);
+  await client.query(
+    'DELETE FROM tournament_rounds WHERE tournament_id = $1 AND round_number > 3',
+    [tournamentId]
+  );
+
   const pendingCount = await client.query(`
     SELECT COUNT(*) FROM tournament_matches tm
     JOIN tournament_rounds tr ON tr.id = tm.round_id
@@ -1973,25 +1984,21 @@ async function finalizeTournamentNewFormat(client, tournamentId) {
     }
   }
 
-  // Get or create active season for league
-  let seasonRes = await client.query("SELECT id FROM seasons WHERE status = 'active' LIMIT 1");
-  let seasonId;
-  if (seasonRes.rows.length === 0) {
-    const t = await client.query('SELECT name FROM tournaments WHERE id = $1', [tournamentId]);
-    const seasonName = t.rows[0].name;
-    const newSeason = await client.query('INSERT INTO seasons (name) VALUES ($1) RETURNING id', [seasonName]);
-    seasonId = newSeason.rows[0].id;
-  } else {
-    seasonId = seasonRes.rows[0].id;
-  }
+  // Create fresh season for the qualified players
+  const t = await client.query('SELECT name FROM tournaments WHERE id = $1', [tournamentId]);
+  const seasonName = `LIGA - ${t.rows[0].name} (${new Date().toLocaleDateString('es-ES')})`;
+  const newSeason = await client.query('INSERT INTO seasons (name) VALUES ($1) RETURNING id', [seasonName]);
+  const seasonId = newSeason.rows[0].id;
 
-  // Add 1st and 2nd place from each group to the season
+  // Add 1st and 2nd place from each group to the new season
+  let globalPos = 1;
   for (const g of Object.keys(groups)) {
     for (let pos = 0; pos < 2 && pos < groups[g].length; pos++) {
       await client.query(
-        'INSERT INTO season_players (season_id, player_id, initial_position) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
-        [seasonId, groups[g][pos].player_id, pos + 1]
+        'INSERT INTO season_players (season_id, player_id, initial_position) VALUES ($1, $2, $3)',
+        [seasonId, groups[g][pos].player_id, globalPos]
       );
+      globalPos++;
     }
   }
 
