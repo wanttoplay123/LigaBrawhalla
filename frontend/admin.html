@@ -1157,8 +1157,7 @@ async function generateRepechaje() {
 
 async function generatePlayoffs() {
   if (!selectedTournamentId) return;
-  const isNew = document.getElementById('mgmtPhaseActions')?.querySelector('button:first-child')?.style?.display === 'none';
-  if (!confirm(isNew ? '¿Pasar a los clasificados al ranking y prepararlos para la liga? Los eliminados recibirán notificación.' : '¿Generar los brackets de playoffs finales? Esto requiere que la fase de repechaje haya concluido.')) return;
+  if (!confirm('¿Pasar a los clasificados al ranking y prepararlos para la liga? Los eliminados recibirán notificación.')) return;
   
   const { ok, data } = await apiFetch(`/tournaments/${selectedTournamentId}/generate-playoffs`, {
     method: 'POST'

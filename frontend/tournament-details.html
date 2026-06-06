@@ -446,218 +446,6 @@
 .t-match-stat span { color: rgba(255,255,255,0.6); font-weight: 600; }
 
 /* ─── BRACKET ─── */
-.bracket-section {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 20px 0;
-}
-.bracket-title {
-  font-family: 'Bebas Neue', sans-serif;
-  font-size: 28px;
-  letter-spacing: 3px;
-  color: #fff;
-  margin-bottom: 24px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.bracket-title .accent-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--gold);
-  box-shadow: 0 0 12px rgba(255,215,0,0.5);
-}
-
-.bracket-grid {
-  display: flex;
-  gap: 50px;
-  overflow-x: auto;
-  padding: 40px 20px;
-  align-items: stretch;
-  background: rgba(0, 0, 0, 0.2);
-  border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.03);
-}
-.bracket-round {
-  display: flex;
-  flex-direction: column;
-  justify-content: space-around;
-  min-height: 620px;
-  width: 250px;
-  position: relative;
-  flex-shrink: 0;
-}
-.bracket-round-title {
-  font-family: 'Orbitron', sans-serif;
-  font-size: 10px;
-  letter-spacing: 2px;
-  text-transform: uppercase;
-  color: rgba(255,255,255,0.3);
-  text-align: center;
-  margin-bottom: 8px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid rgba(255,255,255,0.06);
-}
-.bracket-match {
-  position: relative;
-  background: var(--card-bg);
-  border: 1px solid var(--card-border);
-  border-radius: 12px;
-  overflow: visible;
-  backdrop-filter: blur(10px);
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
-  transition: all 0.3s;
-}
-.bracket-match:hover {
-  border-color: var(--purple-light);
-  box-shadow: 0 0 15px rgba(123, 47, 190, 0.3);
-  transform: translateY(-2px);
-}
-.bracket-slot {
-  padding: 14px 16px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-family: 'Rajdhani', sans-serif;
-  font-weight: 600;
-  font-size: 15px;
-  color: rgba(255,255,255,0.7);
-  border-bottom: 1px solid rgba(255,255,255,0.04);
-  transition: background 0.2s;
-  position: relative;
-  z-index: 2;
-}
-.bracket-slot:last-child { border-bottom: none; }
-.bracket-slot.winner {
-  background: rgba(34, 197, 94, 0.08);
-  color: #22c55e;
-  font-weight: 700;
-}
-.bracket-slot.tbd { color: rgba(255,255,255,0.2); font-style: italic; }
-.bracket-slot-score {
-  font-family: 'Orbitron', sans-serif;
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--gold);
-}
-
-/* CONNECTOR LINES */
-.bracket-match::after {
-  content: '';
-  position: absolute;
-  right: -25px; /* half of 50px gap */
-  top: 50%;
-  width: 25px;
-  height: 2px;
-  background: rgba(255, 255, 255, 0.15);
-  z-index: 1;
-}
-.bracket-round:last-child .bracket-match::after {
-  display: none;
-}
-
-.bracket-match::before {
-  content: '';
-  position: absolute;
-  left: -25px;
-  top: 50%;
-  width: 25px;
-  height: 2px;
-  background: rgba(255, 255, 255, 0.15);
-  z-index: 1;
-}
-.bracket-round:first-child .bracket-match::before {
-  display: none;
-}
-
-/* Spacing and heights for connector branch lines */
-.bracket-round.round-1 .bracket-match:nth-child(2n+1)::after {
-  height: 40px;
-  border-right: 2px solid rgba(255, 255, 255, 0.15);
-  border-bottom: 2px solid rgba(255, 255, 255, 0.15);
-  border-bottom-right-radius: 6px;
-}
-.bracket-round.round-1 .bracket-match:nth-child(2n)::after {
-  height: 40px;
-  top: auto;
-  bottom: 50%;
-  border-right: 2px solid rgba(255, 255, 255, 0.15);
-  border-top: 2px solid rgba(255, 255, 255, 0.15);
-  border-top-right-radius: 6px;
-}
-
-.bracket-round.round-2 .bracket-match:nth-child(2n+1)::after {
-  height: 80px;
-  border-right: 2px solid rgba(255, 255, 255, 0.15);
-  border-bottom: 2px solid rgba(255, 255, 255, 0.15);
-  border-bottom-right-radius: 6px;
-}
-.bracket-round.round-2 .bracket-match:nth-child(2n)::after {
-  height: 80px;
-  top: auto;
-  bottom: 50%;
-  border-right: 2px solid rgba(255, 255, 255, 0.15);
-  border-top: 2px solid rgba(255, 255, 255, 0.15);
-  border-top-right-radius: 6px;
-}
-
-.bracket-round.round-3 .bracket-match:nth-child(2n+1)::after {
-  height: 155px;
-  border-right: 2px solid rgba(255, 255, 255, 0.15);
-  border-bottom: 2px solid rgba(255, 255, 255, 0.15);
-  border-bottom-right-radius: 6px;
-}
-.bracket-round.round-3 .bracket-match:nth-child(2n)::after {
-  height: 155px;
-  top: auto;
-  bottom: 50%;
-  border-right: 2px solid rgba(255, 255, 255, 0.15);
-  border-top: 2px solid rgba(255, 255, 255, 0.15);
-  border-top-right-radius: 6px;
-}
-
-.bracket-round.round-4 .bracket-match:nth-child(2n+1)::after {
-  height: 310px;
-  border-right: 2px solid rgba(255, 255, 255, 0.15);
-  border-bottom: 2px solid rgba(255, 255, 255, 0.15);
-  border-bottom-right-radius: 6px;
-}
-.bracket-round.round-4 .bracket-match:nth-child(2n)::after {
-  height: 310px;
-  top: auto;
-  bottom: 50%;
-  border-right: 2px solid rgba(255, 255, 255, 0.15);
-  border-top: 2px solid rgba(255, 255, 255, 0.15);
-  border-top-right-radius: 6px;
-}
-
-/* ─── LEGEND ─── */
-.legend-bar {
-  display: flex;
-  gap: 20px;
-  flex-wrap: wrap;
-  margin-bottom: 24px;
-  max-width: 1200px;
-  margin-left: auto;
-  margin-right: auto;
-}
-.legend-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  color: rgba(255,255,255,0.4);
-}
-.legend-color {
-  width: 12px;
-  height: 12px;
-  border-radius: 3px;
-}
-.legend-green { background: #22c55e; }
-.legend-yellow { background: #F59E0B; }
-.legend-red { background: #ef4444; }
-
 /* ─── FORMAT BADGE TOOLTIP ─── */
 .t-badge-format {
   position: relative;
@@ -695,8 +483,6 @@
 @media (max-width: 768px) {
   .groups-container { grid-template-columns: 1fr; }
   .players-grid { grid-template-columns: 1fr; }
-  .bracket-grid { gap: 20px; }
-  .bracket-round { min-width: 220px; }
   .detail-tabs { flex-wrap: wrap; }
   .detail-tab { flex: none; min-width: 45%; }
 }
@@ -747,17 +533,11 @@
   <div class="detail-tabs" id="detailTabs">
     <div class="detail-tab active" data-tab="groups">GRUPOS</div>
     <div class="detail-tab" data-tab="matches">PARTIDAS</div>
-    <div class="detail-tab" data-tab="brackets">LLAVES</div>
     <div class="detail-tab" data-tab="players">JUGADORES</div>
   </div>
 
   <!-- GROUPS TAB -->
   <div class="tab-panel active" id="panel-groups">
-    <div class="legend-bar">
-      <div class="legend-item"><div class="legend-color legend-green"></div>Clasifica directo</div>
-      <div class="legend-item"><div class="legend-color legend-yellow"></div>Repechaje</div>
-      <div class="legend-item"><div class="legend-color legend-red"></div>Playoff Final</div>
-    </div>
     <div class="groups-container" id="groupsContent">
       <div style="text-align:center;padding:60px 0;color:rgba(255,255,255,0.4);grid-column:1/-1;">Cargando grupos...</div>
     </div>
@@ -767,13 +547,6 @@
   <div class="tab-panel" id="panel-matches">
     <div id="matchesContent">
       <div style="text-align:center;padding:60px 0;color:rgba(255,255,255,0.4);">Cargando partidas...</div>
-    </div>
-  </div>
-
-  <!-- BRACKETS TAB -->
-  <div class="tab-panel" id="panel-brackets">
-    <div id="bracketsContent">
-      <div style="text-align:center;padding:60px 0;color:rgba(255,255,255,0.4);">Cargando llaves...</div>
     </div>
   </div>
 
@@ -866,16 +639,8 @@ async function loadTournament() {
   renderHero();
   renderGroups();
   renderMatches();
-  renderBrackets();
   renderPlayers();
   loadTournamentMessages();
-
-  // Adjust tabs for format
-  if (tournament.format === 'single_elimination') {
-    document.querySelector('[data-tab="groups"]').style.display = 'none';
-    // Auto-select brackets tab
-    switchTab('brackets');
-  }
 }
 
 function renderHero() {
@@ -975,16 +740,13 @@ function renderMatches() {
     return;
   }
 
-  // Group matches by group name first
+  // Group matches by group name
   const byGroup = {};
-  const playoffMatches = [];
   for (const m of matches) {
     const group = m.player1_group || m.player2_group || null;
-    if (group && !m.round_name?.includes('Playoff') && !m.round_name?.includes('Final') && !m.round_name?.includes('Repechaje')) {
+    if (group) {
       if (!byGroup[group]) byGroup[group] = [];
       byGroup[group].push(m);
-    } else {
-      playoffMatches.push(m);
     }
   }
 
@@ -1066,155 +828,6 @@ function renderMatches() {
     html += '</div>';
   }
 
-  // Playoff / bracket matches section
-  if (playoffMatches.length > 0) {
-    const sortedPlayoffs = playoffMatches.sort((a, b) => (a.round_number || 0) - (b.round_number || 0));
-    html += `
-    <div class="round-matches-section">
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.06);">
-        <div class="group-letter" style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;border-radius:8px;font-family:\'Bebas Neue\',sans-serif;font-size:20px;color:#fff;flex-shrink:0;background:linear-gradient(135deg,#FFD700,#FFA500);">🏆</div>
-        <span style="font-family:\'Bebas Neue\',sans-serif;font-size:22px;letter-spacing:3px;color:#fff;">PLAYOFFS</span>
-        <span style="font-family:\'Orbitron\',sans-serif;font-size:10px;letter-spacing:1px;color:rgba(255,255,255,0.3);">${sortedPlayoffs.length} PARTIDAS</span>
-      </div>`;
-
-    const byRoundP = {};
-    for (const m of sortedPlayoffs) {
-      const key = m.round_id;
-      if (!byRoundP[key]) {
-        byRoundP[key] = { round_number: m.round_number, round_name: m.round_name, matches: [] };
-      }
-      byRoundP[key].matches.push(m);
-    }
-    const sortedRoundsP = Object.values(byRoundP).sort((a, b) => a.round_number - b.round_number);
-
-    for (const round of sortedRoundsP) {
-      const allCompleted = round.matches.every(m => m.status === 'completed');
-      const anyPending = round.matches.some(m => m.status === 'pending');
-      const statusClass = allCompleted ? 'round-status-completed' : (anyPending ? 'round-status-active' : 'round-status-pending');
-      const statusText = allCompleted ? 'COMPLETADA' : 'EN JUEGO';
-
-      html += `
-      <div class="round-header" style="margin-left:0;padding-left:0;">
-        <span class="round-number">${round.round_name || `RONDA ${round.round_number}`}</span>
-        <span class="round-status-tag ${statusClass}">${statusText}</span>
-      </div>`;
-
-      for (const m of round.matches) {
-        const p1Name = m.player1_name || 'TBD';
-        const p2Name = m.player2_name || 'TBD';
-        const isCompleted = m.status === 'completed';
-        const p1Winner = isCompleted && m.winner_id === m.player1_id;
-        const p2Winner = isCompleted && m.winner_id === m.player2_id;
-        const p1Class = !m.player1_id ? 'tbd' : (p1Winner ? 'winner' : '');
-        const p2Class = !m.player2_id ? 'tbd' : (p2Winner ? 'winner' : '');
-
-        let statsHtml = '';
-        if (isCompleted && (m.p1_damage || m.p2_damage || m.p1_kos || m.p2_kos)) {
-          statsHtml = `
-        <div class="t-match-stats">
-          <div class="t-match-stat">DMG: <span>${m.p1_damage || 0}</span> vs <span>${m.p2_damage || 0}</span></div>
-          <div class="t-match-stat">KOs: <span>${m.p1_kos || 0}</span> vs <span>${m.p2_kos || 0}</span></div>
-        </div>`;
-        }
-
-        html += `
-      <div class="t-match-card ${isCompleted ? 'completed' : ''}">
-        <div class="t-match-row">
-          <div class="t-match-player ${p1Class}">
-            <div class="t-match-player-name">${p1Name}</div>
-            ${p1Winner ? '<div style="font-size:11px;color:#22c55e;font-family:\'Orbitron\',sans-serif;letter-spacing:1px;margin-top:2px;">GANADOR</div>' : ''}
-          </div>
-          <div class="t-match-vs">VS</div>
-          <div class="t-match-player ${p2Class}">
-            <div class="t-match-player-name">${p2Name}</div>
-            ${p2Winner ? '<div style="font-size:11px;color:#22c55e;font-family:\'Orbitron\',sans-serif;letter-spacing:1px;margin-top:2px;">GANADOR</div>' : ''}
-          </div>
-        </div>
-        ${isCompleted && m.score ? `<div class="t-match-result"><span class="t-match-score">${m.score}</span>${statsHtml}</div>` : ''}
-        ${!isCompleted ? '<div class="t-match-result" style="border:none;padding:0;margin-top:6px;"><span style="font-size:11px;color:var(--gold);font-family:\'Orbitron\',sans-serif;letter-spacing:2px;">PENDIENTE</span></div>' : ''}
-      </div>`;
-      }
-    }
-
-    html += '</div>';
-  }
-
-  container.innerHTML = html;
-}
-
-function renderBrackets() {
-  const container = document.getElementById('bracketsContent');
-
-  // Filter bracket-type matches (repechaje, playoffs, or all single_elimination)
-  let bracketMatches;
-  if (tournament.format === 'single_elimination') {
-    bracketMatches = matches;
-  } else {
-    bracketMatches = matches.filter(m =>
-      m.round_name && (
-        m.round_name.includes('Repechaje') ||
-        m.round_name.includes('Playoffs') ||
-        m.round_name.includes('Final')
-      )
-    );
-  }
-
-  if (bracketMatches.length === 0) {
-    container.innerHTML = '<div style="text-align:center;padding:40px 0;color:rgba(255,255,255,0.4);">Las llaves se generarán después de la fase de grupos</div>';
-    return;
-  }
-
-  // Group by round
-  const rounds = {};
-  for (const m of bracketMatches) {
-    const key = m.round_id;
-    if (!rounds[key]) {
-      rounds[key] = {
-        round_number: m.round_number,
-        round_name: m.round_name,
-        matches: []
-      };
-    }
-    rounds[key].matches.push(m);
-  }
-
-  const sortedRounds = Object.values(rounds).sort((a, b) => a.round_number - b.round_number);
-
-  let html = '<div class="bracket-section">';
-  html += '<div class="bracket-title"><div class="accent-dot"></div>LLAVES DE ELIMINACIÓN</div>';
-  html += '<div class="bracket-grid">';
-
-  let roundIdx = 1;
-  for (const round of sortedRounds) {
-    html += `
-    <div class="bracket-round round-${roundIdx}" data-round="${roundIdx}">
-      <div class="bracket-round-title">${round.round_name || `RONDA ${round.round_number}`}</div>`;
-
-    for (const m of round.matches) {
-      const p1Name = m.player1_name || 'TBD';
-      const p2Name = m.player2_name || '—';
-      const isCompleted = m.status === 'completed';
-      const p1Winner = isCompleted && m.winner_id === m.player1_id;
-      const p2Winner = isCompleted && m.winner_id === m.player2_id;
-
-      html += `
-      <div class="bracket-match ${isCompleted ? 'completed' : ''}">
-        <div class="bracket-slot ${p1Winner ? 'winner' : ''} ${!m.player1_id ? 'tbd' : ''}">
-          <span>${p1Name}</span>
-          ${isCompleted && m.score ? `<span class="bracket-slot-score">${m.score.split('-')[0]}</span>` : ''}
-        </div>
-        <div class="bracket-slot ${p2Winner ? 'winner' : ''} ${!m.player2_id ? 'tbd' : ''}">
-          <span>${p2Name}</span>
-          ${isCompleted && m.score ? `<span class="bracket-slot-score">${m.score.split('-')[1]}</span>` : ''}
-        </div>
-      </div>`;
-    }
-
-    html += '</div>';
-    roundIdx++;
-  }
-
-  html += '</div></div>';
   container.innerHTML = html;
 }
 
