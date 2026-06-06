@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link rel="icon" type="image/png" href="co_s_color.png">
+<link rel="icon" type="image/png" href="favicon.png">
 <title>Torneo - CO'S CHAMPIONS LEAGUE</title>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@400;500;600;700&family=Orbitron:wght@400;500;700;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
@@ -832,76 +832,165 @@ function renderMatches() {
     return;
   }
 
-  // Group matches by round
-  const rounds = {};
+  // Group matches by group name first
+  const byGroup = {};
+  const playoffMatches = [];
   for (const m of matches) {
-    const key = m.round_id;
-    if (!rounds[key]) {
-      rounds[key] = {
-        round_number: m.round_number,
-        round_name: m.round_name,
-        matches: []
-      };
+    const group = m.player1_group || m.player2_group || null;
+    if (group && !m.round_name?.includes('Playoff') && !m.round_name?.includes('Final') && !m.round_name?.includes('Repechaje')) {
+      if (!byGroup[group]) byGroup[group] = [];
+      byGroup[group].push(m);
+    } else {
+      playoffMatches.push(m);
     }
-    rounds[key].matches.push(m);
   }
 
-  const sortedRounds = Object.values(rounds).sort((a, b) => a.round_number - b.round_number);
-
+  const groupNames = Object.keys(byGroup).sort();
   let html = '';
-  for (const round of sortedRounds) {
-    const allCompleted = round.matches.every(m => m.status === 'completed');
-    const anyPending = round.matches.some(m => m.status === 'pending');
-    const statusClass = allCompleted ? 'round-status-completed' : (anyPending ? 'round-status-active' : 'round-status-pending');
-    const statusText = allCompleted ? 'COMPLETADA' : 'EN JUEGO';
+
+  // Groups section
+  for (const groupName of groupNames) {
+    const groupMatches = byGroup[groupName].sort((a, b) => (a.round_number || 0) - (b.round_number || 0));
 
     html += `
     <div class="round-matches-section">
-      <div class="round-header">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.06);">
+        <div class="group-letter group-letter-${groupName}" style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;border-radius:8px;font-family:\'Bebas Neue\',sans-serif;font-size:20px;color:#fff;flex-shrink:0;">${groupName}</div>
+        <span style="font-family:\'Bebas Neue\',sans-serif;font-size:22px;letter-spacing:3px;color:#fff;">GRUPO ${groupName}</span>
+        <span style="font-family:\'Orbitron\',sans-serif;font-size:10px;letter-spacing:1px;color:rgba(255,255,255,0.3);">${groupMatches.length} PARTIDAS</span>
+      </div>`;
+
+    // Within group, group by round
+    const byRound = {};
+    for (const m of groupMatches) {
+      const key = m.round_id;
+      if (!byRound[key]) {
+        byRound[key] = { round_number: m.round_number, round_name: m.round_name, matches: [] };
+      }
+      byRound[key].matches.push(m);
+    }
+    const sortedRounds = Object.values(byRound).sort((a, b) => a.round_number - b.round_number);
+
+    for (const round of sortedRounds) {
+      const allCompleted = round.matches.every(m => m.status === 'completed');
+      const anyPending = round.matches.some(m => m.status === 'pending');
+      const statusClass = allCompleted ? 'round-status-completed' : (anyPending ? 'round-status-active' : 'round-status-pending');
+      const statusText = allCompleted ? 'COMPLETADA' : 'EN JUEGO';
+
+      html += `
+      <div class="round-header" style="margin-left:0;padding-left:0;">
         <span class="round-number">${round.round_name || `RONDA ${round.round_number}`}</span>
         <span class="round-status-tag ${statusClass}">${statusText}</span>
       </div>`;
 
-    for (const m of round.matches) {
-      const p1Name = m.player1_name || 'TBD';
-      const p2Name = m.player2_name || 'TBD';
-      const isCompleted = m.status === 'completed';
-      const p1Winner = isCompleted && m.winner_id === m.player1_id;
-      const p2Winner = isCompleted && m.winner_id === m.player2_id;
-      const p1Class = !m.player1_id ? 'tbd' : (p1Winner ? 'winner' : '');
-      const p2Class = !m.player2_id ? 'tbd' : (p2Winner ? 'winner' : '');
+      for (const m of round.matches) {
+        const p1Name = m.player1_name || 'TBD';
+        const p2Name = m.player2_name || 'TBD';
+        const isCompleted = m.status === 'completed';
+        const p1Winner = isCompleted && m.winner_id === m.player1_id;
+        const p2Winner = isCompleted && m.winner_id === m.player2_id;
+        const p1Class = !m.player1_id ? 'tbd' : (p1Winner ? 'winner' : '');
+        const p2Class = !m.player2_id ? 'tbd' : (p2Winner ? 'winner' : '');
 
-      let groupTag = '';
-      if (m.player1_group) {
-        groupTag = `<span class="t-match-group-tag" style="background:rgba(123,47,190,0.15);color:var(--purple-light);">GRUPO ${m.player1_group}</span>`;
-      }
-
-      let statsHtml = '';
-      if (isCompleted && (m.p1_damage || m.p2_damage || m.p1_kos || m.p2_kos)) {
-        statsHtml = `
+        let statsHtml = '';
+        if (isCompleted && (m.p1_damage || m.p2_damage || m.p1_kos || m.p2_kos)) {
+          statsHtml = `
         <div class="t-match-stats">
           <div class="t-match-stat">DMG: <span>${m.p1_damage || 0}</span> vs <span>${m.p2_damage || 0}</span></div>
           <div class="t-match-stat">KOs: <span>${m.p1_kos || 0}</span> vs <span>${m.p2_kos || 0}</span></div>
         </div>`;
-      }
+        }
 
-      html += `
+        html += `
       <div class="t-match-card ${isCompleted ? 'completed' : ''}">
-        ${groupTag}
         <div class="t-match-row">
           <div class="t-match-player ${p1Class}">
             <div class="t-match-player-name">${p1Name}</div>
-            ${p1Winner ? '<div class="winner-badge">GANADOR</div>' : ''}
+            ${p1Winner ? '<div style="font-size:11px;color:#22c55e;font-family:\'Orbitron\',sans-serif;letter-spacing:1px;margin-top:2px;">GANADOR</div>' : ''}
           </div>
           <div class="t-match-vs">VS</div>
           <div class="t-match-player ${p2Class}">
             <div class="t-match-player-name">${p2Name}</div>
-            ${p2Winner ? '<div class="winner-badge">GANADOR</div>' : ''}
+            ${p2Winner ? '<div style="font-size:11px;color:#22c55e;font-family:\'Orbitron\',sans-serif;letter-spacing:1px;margin-top:2px;">GANADOR</div>' : ''}
           </div>
         </div>
         ${isCompleted && m.score ? `<div class="t-match-result"><span class="t-match-score">${m.score}</span>${statsHtml}</div>` : ''}
-        ${!isCompleted ? '<div class="match-pending">PENDIENTE</div>' : ''}
+        ${!isCompleted ? '<div class="t-match-result" style="border:none;padding:0;margin-top:6px;"><span style="font-size:11px;color:var(--gold);font-family:\'Orbitron\',sans-serif;letter-spacing:2px;">PENDIENTE</span></div>' : ''}
       </div>`;
+      }
+    }
+
+    html += '</div>';
+  }
+
+  // Playoff / bracket matches section
+  if (playoffMatches.length > 0) {
+    const sortedPlayoffs = playoffMatches.sort((a, b) => (a.round_number || 0) - (b.round_number || 0));
+    html += `
+    <div class="round-matches-section">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.06);">
+        <div class="group-letter" style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;border-radius:8px;font-family:\'Bebas Neue\',sans-serif;font-size:20px;color:#fff;flex-shrink:0;background:linear-gradient(135deg,#FFD700,#FFA500);">🏆</div>
+        <span style="font-family:\'Bebas Neue\',sans-serif;font-size:22px;letter-spacing:3px;color:#fff;">PLAYOFFS</span>
+        <span style="font-family:\'Orbitron\',sans-serif;font-size:10px;letter-spacing:1px;color:rgba(255,255,255,0.3);">${sortedPlayoffs.length} PARTIDAS</span>
+      </div>`;
+
+    const byRoundP = {};
+    for (const m of sortedPlayoffs) {
+      const key = m.round_id;
+      if (!byRoundP[key]) {
+        byRoundP[key] = { round_number: m.round_number, round_name: m.round_name, matches: [] };
+      }
+      byRoundP[key].matches.push(m);
+    }
+    const sortedRoundsP = Object.values(byRoundP).sort((a, b) => a.round_number - b.round_number);
+
+    for (const round of sortedRoundsP) {
+      const allCompleted = round.matches.every(m => m.status === 'completed');
+      const anyPending = round.matches.some(m => m.status === 'pending');
+      const statusClass = allCompleted ? 'round-status-completed' : (anyPending ? 'round-status-active' : 'round-status-pending');
+      const statusText = allCompleted ? 'COMPLETADA' : 'EN JUEGO';
+
+      html += `
+      <div class="round-header" style="margin-left:0;padding-left:0;">
+        <span class="round-number">${round.round_name || `RONDA ${round.round_number}`}</span>
+        <span class="round-status-tag ${statusClass}">${statusText}</span>
+      </div>`;
+
+      for (const m of round.matches) {
+        const p1Name = m.player1_name || 'TBD';
+        const p2Name = m.player2_name || 'TBD';
+        const isCompleted = m.status === 'completed';
+        const p1Winner = isCompleted && m.winner_id === m.player1_id;
+        const p2Winner = isCompleted && m.winner_id === m.player2_id;
+        const p1Class = !m.player1_id ? 'tbd' : (p1Winner ? 'winner' : '');
+        const p2Class = !m.player2_id ? 'tbd' : (p2Winner ? 'winner' : '');
+
+        let statsHtml = '';
+        if (isCompleted && (m.p1_damage || m.p2_damage || m.p1_kos || m.p2_kos)) {
+          statsHtml = `
+        <div class="t-match-stats">
+          <div class="t-match-stat">DMG: <span>${m.p1_damage || 0}</span> vs <span>${m.p2_damage || 0}</span></div>
+          <div class="t-match-stat">KOs: <span>${m.p1_kos || 0}</span> vs <span>${m.p2_kos || 0}</span></div>
+        </div>`;
+        }
+
+        html += `
+      <div class="t-match-card ${isCompleted ? 'completed' : ''}">
+        <div class="t-match-row">
+          <div class="t-match-player ${p1Class}">
+            <div class="t-match-player-name">${p1Name}</div>
+            ${p1Winner ? '<div style="font-size:11px;color:#22c55e;font-family:\'Orbitron\',sans-serif;letter-spacing:1px;margin-top:2px;">GANADOR</div>' : ''}
+          </div>
+          <div class="t-match-vs">VS</div>
+          <div class="t-match-player ${p2Class}">
+            <div class="t-match-player-name">${p2Name}</div>
+            ${p2Winner ? '<div style="font-size:11px;color:#22c55e;font-family:\'Orbitron\',sans-serif;letter-spacing:1px;margin-top:2px;">GANADOR</div>' : ''}
+          </div>
+        </div>
+        ${isCompleted && m.score ? `<div class="t-match-result"><span class="t-match-score">${m.score}</span>${statsHtml}</div>` : ''}
+        ${!isCompleted ? '<div class="t-match-result" style="border:none;padding:0;margin-top:6px;"><span style="font-size:11px;color:var(--gold);font-family:\'Orbitron\',sans-serif;letter-spacing:2px;">PENDIENTE</span></div>' : ''}
+      </div>`;
+      }
     }
 
     html += '</div>';
