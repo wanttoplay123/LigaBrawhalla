@@ -190,3 +190,22 @@ function showNotification(message, type = 'info') {
   document.body.appendChild(div);
   setTimeout(() => div.remove(), 4000);
 }
+
+/* ── MOBILE MENU: close on link click ── */
+document.addEventListener('DOMContentLoaded', () => {
+  const mobileMenu = document.getElementById('mobileMenu');
+  if (mobileMenu) {
+    mobileMenu.querySelectorAll('a').forEach(a => {
+      a.addEventListener('click', () => {
+        mobileMenu.classList.remove('open');
+        const ham = document.getElementById('hamburger');
+        if (ham) {
+          ham.children[0].style.transform = '';
+          ham.children[1].style.opacity = '';
+          ham.children[2].style.transform = '';
+        }
+        document.body.style.overflow = '';
+      });
+    });
+  }
+});
