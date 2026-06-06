@@ -1,5 +1,77 @@
 const API_URL = '/api';
 
+// ── CANVAS PARTICLES INJECTION ──
+function initParticles() {
+  if (document.getElementById('particles-canvas')) return;
+  const canvas = document.createElement('canvas');
+  canvas.id = 'particles-canvas';
+  document.body.prepend(canvas);
+  
+  const ctx = canvas.getContext('2d');
+  let W, H, particles = [];
+  const NUM = 55;
+
+  function resize() { W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight; }
+  resize(); window.addEventListener('resize', resize);
+
+  function rand(a, b) { return a + Math.random() * (b - a); }
+
+  class Particle {
+    constructor() {
+      this.x = rand(0, W); this.y = rand(0, H);
+      this.r = rand(0.6, 2.2);
+      this.vx = rand(-0.25, 0.25); this.vy = rand(-0.4, -0.08);
+      const colors = ['rgba(168,85,247,', 'rgba(255,215,0,', 'rgba(6,182,212,', 'rgba(255,255,255,'];
+      this.color = colors[Math.floor(Math.random() * colors.length)];
+      this.alpha = rand(0.15, 0.55);
+      this.life = rand(0.003, 0.007);
+    }
+    draw() {
+      ctx.beginPath(); ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
+      ctx.fillStyle = this.color + this.alpha + ')'; ctx.fill();
+    }
+    update() {
+      this.x += this.vx; this.y += this.vy;
+      this.alpha -= this.life;
+      if (this.alpha <= 0 || this.y < -10) { Object.assign(this, new Particle()); this.y = H + 5; this.alpha = rand(0.15, 0.5); }
+    }
+  }
+
+  for (let i = 0; i < NUM; i++) { const p = new Particle(); p.y = rand(0, H); particles.push(p); }
+
+  function loop() {
+    ctx.clearRect(0, 0, W, H);
+    particles.forEach(p => { p.update(); p.draw(); });
+    requestAnimationFrame(loop);
+  }
+  loop();
+}
+
+// ── GLOBAL ANIMATION ORCHESTRATOR ──
+function initGlobalAnimations() {
+  // Apply reveal class to generic containers if they don't have it
+  if (window.location.pathname.indexOf('index.html') === -1) {
+    document.querySelectorAll('.page-section > div, .standings-table, .match-card, .player-profile, .auth-card, .section-header').forEach((el, index) => {
+      if (!el.classList.contains('reveal')) {
+        el.classList.add('reveal');
+        if (index % 3 === 1) el.classList.add('reveal-delay-1');
+        if (index % 3 === 2) el.classList.add('reveal-delay-2');
+      }
+    });
+  }
+
+  const revealObs = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); revealObs.unobserve(e.target); } });
+  }, { threshold: 0.1 });
+  
+  document.querySelectorAll('.reveal').forEach(el => revealObs.observe(el));
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  initParticles();
+  initGlobalAnimations();
+});
+
 function getToken() {
   return localStorage.getItem('token');
 }

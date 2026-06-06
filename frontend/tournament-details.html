@@ -134,9 +134,9 @@
 .group-card {
   background: var(--card-bg);
   border: 1px solid var(--card-border);
-  border-radius: 12px;
+  border-radius: var(--radius);
   overflow: hidden;
-  backdrop-filter: blur(12px);
+  backdrop-filter: blur(16px);
   min-width: 0;
 }
 .group-card-header {
@@ -222,15 +222,15 @@
 .player-card-sm {
   background: var(--card-bg);
   border: 1px solid var(--card-border);
-  border-radius: 12px;
+  border-radius: var(--radius);
   padding: 20px;
   display: flex;
   align-items: center;
   gap: 16px;
-  backdrop-filter: blur(10px);
-  transition: border-color 0.3s;
+  backdrop-filter: blur(16px);
+  transition: all 0.3s;
 }
-.player-card-sm:hover { border-color: rgba(123,47,190,0.4); }
+.player-card-sm:hover { border-color: rgba(168,85,247,0.35); transform: translateY(-3px); box-shadow: 0 12px 40px rgba(123,47,190,0.2); }
 .player-card-avatar {
   width: 48px;
   height: 48px;
