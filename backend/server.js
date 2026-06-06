@@ -203,7 +203,7 @@ app.get('/api/players/:id', async (req, res) => {
     `, [req.params.id]);
 
     const standings = await pool.query(`
-      SELECT COALESCE(SUM(CASE WHEN m.winner_id = $1 THEN 3 ELSE 0 END), 0) AS points
+      SELECT COALESCE(SUM(CASE WHEN m.winner_id = $1 THEN 1 ELSE 0 END), 0) AS points
       FROM matches m
       JOIN rounds r ON r.id = m.round_id
       WHERE m.status = 'completed' AND (m.player1_id = $1 OR m.player2_id = $1)
@@ -958,7 +958,7 @@ async function getSeasonChampion(seasonId) {
   // Step 5: Sort and select the champion
   const rows = playersResult.rows.map(p => {
     const s = statsMap[p.id] || { wins: 0, losses: 0, matches_played: 0 };
-    const points = s.wins * 3;
+    const points = s.wins;
     const diff = s.wins - s.losses;
     return {
       player_id: p.id,
@@ -1091,7 +1091,7 @@ async function computeStandings(seasonId, res) {
     // Step 5: Build result rows
     const rows = playersResult.rows.map(p => {
       const s = statsMap[p.id] || { wins: 0, losses: 0, matches_played: 0 };
-      const points = s.wins * 3;
+      const points = s.wins;
       const diff = s.wins - s.losses;
       const winrate = s.matches_played > 0 ? Math.round((s.wins / s.matches_played) * 10000) / 100 : 0;
       return {
@@ -1740,7 +1740,7 @@ app.get('/api/tournaments/:id/standings', async (req, res) => {
         stats[p1].kos += (m.p1_kos || 0);
         if (m.winner_id === p1) {
           stats[p1].wins++;
-          stats[p1].points += 3;
+          stats[p1].points += 1;
         } else if (m.winner_id === p2) {
           stats[p1].losses++;
         }
@@ -1752,7 +1752,7 @@ app.get('/api/tournaments/:id/standings', async (req, res) => {
         stats[p2].kos += (m.p2_kos || 0);
         if (m.winner_id === p2) {
           stats[p2].wins++;
-          stats[p2].points += 3;
+          stats[p2].points += 1;
         } else if (m.winner_id === p1) {
           stats[p2].losses++;
         }
@@ -1862,7 +1862,7 @@ app.post('/api/tournaments/:id/generate-repechaje', authMiddleware, adminMiddlew
         if (stats[side.pid]) {
           stats[side.pid].damage_dealt += (side.dmg || 0);
           stats[side.pid].kos += (side.kos || 0);
-          if (side.winner === side.pid) stats[side.pid].points += 3;
+          if (side.winner === side.pid) stats[side.pid].points += 1;
         }
       }
     }
@@ -1972,7 +1972,7 @@ async function finalizeTournamentNewFormat(client, tournamentId) {
       if (stats[side.pid]) {
         stats[side.pid].damage_dealt += (side.dmg || 0);
         stats[side.pid].kos += (side.kos || 0);
-        if (side.winner === side.pid) stats[side.pid].points += 3;
+        if (side.winner === side.pid) stats[side.pid].points += 1;
       }
     }
   }
@@ -2050,7 +2050,7 @@ async function generatePlayoffsOldFormat(client, tournamentId) {
       if (stats[side.pid]) {
         stats[side.pid].damage_dealt += (side.dmg || 0);
         stats[side.pid].kos += (side.kos || 0);
-        if (side.winner === side.pid) stats[side.pid].points += 3;
+        if (side.winner === side.pid) stats[side.pid].points += 1;
       }
     }
   }
