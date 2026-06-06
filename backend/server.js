@@ -495,10 +495,7 @@ app.post('/api/seasons', authMiddleware, adminMiddleware, async (req, res) => {
       // Clear qualifiers after use
       await pool.query('DELETE FROM tournament_qualifiers');
     } else {
-      // Fallback: use all approved players
-      const approvedPlayers = await pool.query("SELECT id FROM players WHERE status = 'approved' AND brawlhalla_id IS NOT NULL");
-      if (approvedPlayers.rows.length < 2) return res.status(400).json({ error: 'Need at least 2 approved players' });
-      playerIds = approvedPlayers.rows.map(r => r.id);
+      return res.status(400).json({ error: 'No hay suficientes clasificados en el ranking para crear la liga (Mínimo 2). Debes traspasar ganadores de un torneo primero.' });
     }
 
     const seasonResult = await pool.query('INSERT INTO seasons (name) VALUES ($1) RETURNING id', [name]);
