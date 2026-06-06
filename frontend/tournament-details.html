@@ -785,6 +785,8 @@ function renderGroups() {
             <th>D</th>
             <th>KOs</th>
             <th>DMG+</th>
+            <th>DMG-</th>
+            <th>DIF</th>
             <th>PTS</th>
           </tr>
         </thead>
@@ -803,6 +805,8 @@ function renderGroups() {
             <td style="color:#ef4444;">${p.losses || 0}</td>
             <td>${p.kos || 0}</td>
             <td>${p.damage_dealt || 0}</td>
+            <td>${p.damage_taken || 0}</td>
+            <td style="font-weight:600;color:${((p.damage_dealt||0)-(p.damage_taken||0)) >= 0 ? '#22c55e' : '#ef4444'}">${(p.damage_dealt||0)-(p.damage_taken||0)}</td>
             <td><span class="group-pts">${p.points || 0}</span></td>
           </tr>`;
     });
