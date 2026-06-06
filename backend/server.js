@@ -1131,6 +1131,16 @@ app.get('/api/standings', async (req, res) => {
         await computeStandings(lastSeason.rows[0].id, res);
         return;
       }
+      const qualifiers = await pool.query(`
+        SELECT q.position, p.id, p.brawlhalla_name, p.tier, u.username, 0 AS points, 0 AS wins, 0 AS losses, 0 AS matches_played, 0 AS difference, 0.00 AS winrate
+        FROM tournament_qualifiers q
+        JOIN players p ON p.id = q.player_id
+        JOIN users u ON u.id = p.user_id
+        ORDER BY q.position ASC
+      `);
+      if (qualifiers.rows.length > 0) {
+        return res.json(qualifiers.rows);
+      }
       const allPlayers = await pool.query(`
         SELECT p.id, p.brawlhalla_name, p.tier, u.username, 0 AS points, 0 AS wins, 0 AS losses, 0 AS matches_played, 0 AS difference, 0.00 AS winrate
         FROM players p JOIN users u ON u.id = p.user_id WHERE p.status = 'approved' AND p.brawlhalla_id IS NOT NULL ORDER BY p.created_at ASC
