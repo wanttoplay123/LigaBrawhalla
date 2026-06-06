@@ -588,6 +588,53 @@
 .legend-yellow { background: #F59E0B; }
 .legend-red { background: #ef4444; }
 
+/* ─── TOURNAMENT RULES ─── */
+.tournament-rules {
+  max-width: 900px;
+  margin: 24px auto 0;
+}
+.rules-card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius);
+  padding: 24px 28px;
+  backdrop-filter: blur(16px);
+}
+.rules-title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 18px;
+  letter-spacing: 3px;
+  color: var(--gold);
+  margin-bottom: 16px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.rules-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.rule-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.rule-icon {
+  font-size: 18px;
+  width: 28px;
+  text-align: center;
+  flex-shrink: 0;
+}
+.rule-text {
+  font-size: 14px;
+  color: rgba(255,255,255,0.7);
+  line-height: 1.5;
+}
+.rule-text strong {
+  color: #fff;
+  font-weight: 700;
+}
+
 /* ─── RESPONSIVE ─── */
 @media (max-width: 768px) {
   .groups-container { grid-template-columns: 1fr; }
@@ -637,6 +684,21 @@
     <div class="tournament-meta" id="tournamentMeta"></div>
     <h1 class="tournament-title" id="tournamentTitle">Cargando...</h1>
     <div class="tournament-date" id="tournamentDate"></div>
+  </div>
+</section>
+
+<section class="page-section" style="padding:0 5vw; margin-bottom:0;">
+  <div class="tournament-rules" id="tournamentRules">
+    <div class="rules-card">
+      <div class="rules-title">FORMATO DEL TORNEO</div>
+      <div class="rules-content">
+        <div class="rule-item"><span class="rule-icon">👥</span><span class="rule-text">15 Jugadores divididos en <strong>5 grupos de 3</strong></span></div>
+        <div class="rule-item"><span class="rule-icon">⚔️</span><span class="rule-text">Cada jugador enfrenta a los otros 2 de su grupo (round-robin)</span></div>
+        <div class="rule-item"><span class="rule-icon">🏆</span><span class="rule-text">Los 2 mejores de cada grupo clasifican a la siguiente fase</span></div>
+        <div class="rule-item"><span class="rule-icon">📊</span><span class="rule-text">Victoria = 3 puntos · Derrota = 0 puntos</span></div>
+        <div class="rule-item"><span class="rule-icon">🎯</span><span class="rule-text">Se desempata por diferencia de KOs y daño</span></div>
+      </div>
+    </div>
   </div>
 </section>
 
@@ -738,7 +800,7 @@ async function loadTournament() {
 function renderHero() {
   const meta = document.getElementById('tournamentMeta');
   const isNewFormat = players.filter(p => p.group_name).reduce((acc, p) => { acc.add(p.group_name); return acc; }, new Set()).size === 5;
-  const formatLabel = tournament.format === 'custom_3groups' ? (isNewFormat ? '5 GRUPOS + PLAYOFFS' : '3 GRUPOS + REPECHAJE + PLAYOFFS') : 'ELIMINACIÓN DIRECTA';
+  const formatLabel = tournament.format === 'custom_3groups' ? (isNewFormat ? '5 GRUPOS DE 3 JUGADORES' : '5 GRUPOS DE 3 JUGADORES') : 'ELIMINACIÓN DIRECTA';
   const statusLabel = tournament.status === 'active' ? 'EN CURSO' : 'FINALIZADO';
   const statusClass = tournament.status === 'active' ? 't-badge-active' : 't-badge-completed';
 
