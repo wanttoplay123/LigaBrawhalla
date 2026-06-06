@@ -1984,18 +1984,16 @@ async function finalizeTournamentNewFormat(client, tournamentId) {
     }
   }
 
-  // Create fresh season for the qualified players
-  const t = await client.query('SELECT name FROM tournaments WHERE id = $1', [tournamentId]);
-  const seasonName = `LIGA - ${t.rows[0].name} (${new Date().toLocaleDateString('es-ES')})`;
-  const newSeason = await client.query('INSERT INTO seasons (name) VALUES ($1) RETURNING id', [seasonName]);
-  const seasonId = newSeason.rows[0].id;
+  // Use active season (must exist, checked before calling this function)
+  const seasonRes = await client.query("SELECT id FROM seasons WHERE status = 'active' LIMIT 1");
+  const seasonId = seasonRes.rows[0].id;
 
-  // Add 1st and 2nd place from each group to the new season
+  // Add 1st and 2nd place from each group to the active season
   let globalPos = 1;
   for (const g of Object.keys(groups)) {
     for (let pos = 0; pos < 2 && pos < groups[g].length; pos++) {
       await client.query(
-        'INSERT INTO season_players (season_id, player_id, initial_position) VALUES ($1, $2, $3)',
+        'INSERT INTO season_players (season_id, player_id, initial_position) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
         [seasonId, groups[g][pos].player_id, globalPos]
       );
       globalPos++;
@@ -2163,6 +2161,12 @@ app.post('/api/tournaments/:id/generate-playoffs', authMiddleware, adminMiddlewa
     const numGroups = parseInt(groupCount.rows[0].cnt);
 
     if (numGroups === 5) {
+      // Require an active season
+      const seasonCheck = await client.query("SELECT id FROM seasons WHERE status = 'active' LIMIT 1");
+      if (seasonCheck.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Debes crear una temporada/liga activa primero antes de pasar los clasificados' });
+      }
       await finalizeTournamentNewFormat(client, tournamentId);
     } else {
       await generatePlayoffsOldFormat(client, tournamentId);

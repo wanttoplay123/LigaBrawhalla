@@ -170,11 +170,11 @@
   letter-spacing: 2px;
   color: #fff;
 }
-.group-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.group-table { width: 100%; border-collapse: collapse; }
 .group-table th {
-  padding: 8px 4px;
+  padding: 10px 6px;
   font-family: 'Orbitron', sans-serif;
-  font-size: 8px;
+  font-size: 10px;
   letter-spacing: 0.5px;
   text-transform: uppercase;
   color: rgba(255,255,255,0.3);
@@ -184,16 +184,14 @@
 }
 .group-table th:nth-child(2) { text-align: left; }
 .group-table td {
-  padding: 8px 4px;
-  font-size: 12px;
+  padding: 10px 6px;
+  font-size: 13px;
   text-align: center;
   border-bottom: 1px solid rgba(255,255,255,0.03);
   color: rgba(255,255,255,0.7);
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
-.group-table td:nth-child(2) { text-align: left; font-weight: 600; color: #fff; max-width: 120px; }
+.group-table td:nth-child(2) { text-align: left; font-weight: 600; color: #fff; min-width: 100px; }
 .group-table tr:last-child td { border-bottom: none; }
 
 .group-table tr.qualify-direct td:first-child { border-left: 3px solid #22c55e; }
