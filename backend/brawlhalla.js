@@ -41,6 +41,24 @@ async function searchPlayer(name) {
   }
 }
 
+async function searchPlayerByName(name) {
+  try {
+    const results = await searchPlayer(name);
+    if (results.length > 0) return results;
+  } catch {}
+  const clean = name.replace(/[^a-zA-Z0-9 ]/g, '').trim();
+  if (clean && clean !== name) {
+    const results = await searchPlayer(clean);
+    if (results.length > 0) return results;
+  }
+  const words = clean.split(/\s+/).filter(Boolean);
+  if (words.length > 1) {
+    const last = words[words.length - 1];
+    if (last.length > 2) return searchPlayer(last);
+  }
+  return [];
+}
+
 async function getPlayerStats(brawlhallaId) {
   try {
     const data = await apiRequest(`/player/stats?brawlhalla_id=${brawlhallaId}&mode=all`);
@@ -72,15 +90,25 @@ async function verifyPlayerExists(brawlhallaId) {
     });
   }
 
-  const ranked = await getPlayerRankedStats(brawlhallaId);
+  // Search leaderboard for tier data
+  let tier = null;
+  let rating = 0;
+  if (data.name) {
+    const results = await searchPlayerByName(data.name);
+    const match = results.find(r => r.brawlhalla_id === brawlhallaId);
+    if (match) {
+      tier = match.tier;
+      rating = match.rating;
+    }
+  }
 
   return {
     ...data,
-    tier: ranked?.tier || null,
-    rating: ranked?.rating || 0,
+    tier,
+    rating,
     total_damage_dealt: totalDamageDealt,
     total_damage_taken: totalDamageTaken
   };
 }
 
-module.exports = { searchPlayer, getPlayerStats, getPlayerRankedStats, verifyPlayerExists };
+module.exports = { searchPlayer, searchPlayerByName, getPlayerStats, getPlayerRankedStats, verifyPlayerExists };
