@@ -692,6 +692,7 @@ function renderGroups() {
           <tr>
             <th>#</th>
             <th>JUGADOR</th>
+            <th>RANGO</th>
             <th>PJ</th>
             <th>V</th>
             <th>D</th>
@@ -712,6 +713,7 @@ function renderGroups() {
           <tr class="${qualifyClass}">
             <td><span class="group-pos ${posClass}">${pos}</span></td>
             <td style="text-align:left;font-weight:600;color:#fff;">${p.brawlhalla_name || p.username}</td>
+            <td style="font-size:11px;color:var(--purple-light);font-family:'Orbitron',sans-serif;letter-spacing:1px;">${p.tier || '—'}</td>
             <td>${p.matches_played || 0}</td>
             <td style="color:#22c55e;">${p.wins || 0}</td>
             <td style="color:#ef4444;">${p.losses || 0}</td>
@@ -811,11 +813,13 @@ function renderMatches() {
         <div class="t-match-row">
           <div class="t-match-player ${p1Class}">
             <div class="t-match-player-name">${p1Name}</div>
+            ${m.player1_tier ? `<div style="font-size:9px;color:var(--purple-light);font-family:'Orbitron',sans-serif;letter-spacing:1px;margin-top:2px;">${m.player1_tier}</div>` : ''}
             ${p1Winner ? '<div style="font-size:11px;color:#22c55e;font-family:\'Orbitron\',sans-serif;letter-spacing:1px;margin-top:2px;">GANADOR</div>' : ''}
           </div>
           <div class="t-match-vs">VS</div>
           <div class="t-match-player ${p2Class}">
             <div class="t-match-player-name">${p2Name}</div>
+            ${m.player2_tier ? `<div style="font-size:9px;color:var(--purple-light);font-family:'Orbitron',sans-serif;letter-spacing:1px;margin-top:2px;">${m.player2_tier}</div>` : ''}
             ${p2Winner ? '<div style="font-size:11px;color:#22c55e;font-family:\'Orbitron\',sans-serif;letter-spacing:1px;margin-top:2px;">GANADOR</div>' : ''}
           </div>
         </div>
@@ -862,7 +866,10 @@ function renderPlayers() {
         <div class="player-card-avatar">${initial}</div>
         <div class="player-card-info">
           <h4>${p.brawlhalla_name || p.username}</h4>
-          ${groupTag}
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+            ${p.tier ? `<span class="player-tier-badge" style="font-size:9px;padding:2px 8px;background:linear-gradient(135deg,var(--purple),#9333EA);border-radius:4px;font-family:'Orbitron',sans-serif;letter-spacing:1px;color:#fff;font-weight:700;">${p.tier}</span>` : ''}
+            ${groupTag}
+          </div>
         </div>
         <span class="player-card-status player-status-approved">✓</span>
       </div>`;

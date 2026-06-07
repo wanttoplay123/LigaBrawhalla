@@ -343,6 +343,35 @@ app.get('/api/admin/players/approved', authMiddleware, adminMiddleware, async (r
   }
 });
 
+app.post('/api/admin/players/reverify-tiers', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const players = await pool.query(
+      "SELECT id, brawlhalla_id FROM players WHERE status = 'approved' AND brawlhalla_id IS NOT NULL"
+    );
+    let updated = 0;
+    let failed = 0;
+    for (const p of players.rows) {
+      try {
+        const verified = await brawlhalla.verifyPlayerExists(p.brawlhalla_id);
+        if (verified) {
+          await pool.query(
+            'UPDATE players SET brawlhalla_name = $1, tier = $2, rating = $3 WHERE id = $4',
+            [verified.name, verified.tier || 'Unranked', verified.rating || 0, p.id]
+          );
+          updated++;
+        } else {
+          failed++;
+        }
+      } catch {
+        failed++;
+      }
+    }
+    res.json({ message: `Re-verificación completada: ${updated} actualizados, ${failed} fallaron` });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Server error' });
+  }
+});
+
 app.get('/api/admin/matches/pending', authMiddleware, adminMiddleware, async (req, res) => {
   try {
     let seasonId = null;

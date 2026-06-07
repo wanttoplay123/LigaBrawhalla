@@ -72,8 +72,12 @@ async function verifyPlayerExists(brawlhallaId) {
     });
   }
 
+  const ranked = await getPlayerRankedStats(brawlhallaId);
+
   return {
     ...data,
+    tier: ranked?.tier || null,
+    rating: ranked?.rating || 0,
     total_damage_dealt: totalDamageDealt,
     total_damage_taken: totalDamageTaken
   };
