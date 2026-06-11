@@ -944,6 +944,39 @@ app.patch('/api/admin/matches/:id/code', authMiddleware, adminMiddleware, async 
   }
 });
 
+app.patch('/api/matches/:id/code', authMiddleware, async (req, res) => {
+  try {
+    const { match_code } = req.body;
+    const cleanCode = String(match_code || '').trim().slice(0, 80);
+
+    const matchResult = await pool.query(
+      'SELECT id, player1_id, player2_id FROM matches WHERE id = $1',
+      [req.params.id]
+    );
+    if (matchResult.rows.length === 0) return res.status(404).json({ error: 'Match not found' });
+
+    const match = matchResult.rows[0];
+    if (req.user.role !== 'admin') {
+      const playerResult = await pool.query('SELECT id FROM players WHERE user_id = $1', [req.user.id]);
+      if (playerResult.rows.length === 0) return res.status(403).json({ error: 'Player profile required' });
+
+      const playerId = playerResult.rows[0].id;
+      if (playerId !== match.player1_id && playerId !== match.player2_id) {
+        return res.status(403).json({ error: 'Only match players can update this code' });
+      }
+    }
+
+    await pool.query(
+      'UPDATE matches SET match_code = $1 WHERE id = $2',
+      [cleanCode || null, req.params.id]
+    );
+    res.json({ message: 'Match code updated', match_code: cleanCode || null });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // ─── SEASONS HISTORY ───
 
 // Helper to compute season champion and stats accurately

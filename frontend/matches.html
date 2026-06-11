@@ -7,7 +7,7 @@
 <title>Partidas - CO'S CHAMPIONS LEAGUE</title>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@400;500;600;700&family=Orbitron:wght@400;500;700;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
-<style>.nav-logo-icon-wrap{width:50px;height:50px;overflow:hidden;flex-shrink:0;filter:drop-shadow(0 0 10px rgba(255,215,0,0.6))}.nav-logo-icon{width:125px;height:auto;margin-left:-38px;margin-top:-10px;mix-blend-mode:screen;display:block}</style></head>
+<style>.nav-logo-icon-wrap{width:50px;height:50px;overflow:hidden;flex-shrink:0;filter:drop-shadow(0 0 10px rgba(255,215,0,0.6))}.nav-logo-icon{width:125px;height:auto;margin-left:-38px;margin-top:-10px;mix-blend-mode:screen;display:block}.match-list-row{cursor:pointer;transition:background .2s,transform .2s}.match-list-row:hover{background:rgba(255,255,255,.04);transform:translateX(2px)}.match-detail-grid{display:grid;grid-template-columns:1fr auto 1fr;gap:12px;align-items:center}.match-detail-player{padding:14px;border:1px solid rgba(255,255,255,.08);border-radius:8px;background:rgba(255,255,255,.03)}.match-code-box{margin-top:18px;padding:16px;border:1px solid rgba(255,215,0,.18);border-radius:8px;background:rgba(255,215,0,.05)}@media(max-width:768px){.match-detail-grid{grid-template-columns:1fr}.match-list-row{align-items:flex-start!important;gap:8px;flex-wrap:wrap}}</style></head>
 <body>
 <nav>
   <a href="index.html" class="nav-logo">
@@ -55,9 +55,33 @@
   </div>
 </section>
 
+<div id="matchDetailModal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.72);backdrop-filter:blur(5px);align-items:center;justify-content:center;padding:18px;">
+  <div style="background:var(--dark3);border:1px solid var(--card-border);border-radius:12px;padding:28px;max-width:620px;width:100%;box-shadow:0 20px 80px rgba(0,0,0,0.45);">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:18px;">
+      <div>
+        <div id="matchDetailKicker" style="font-family:'Orbitron',sans-serif;font-size:12px;letter-spacing:1.5px;color:rgba(255,215,0,0.65);margin-bottom:6px;"></div>
+        <h3 id="matchDetailTitle" style="font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:2px;color:#fff;margin:0;"></h3>
+      </div>
+      <button type="button" onclick="closeMatchDetail()" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#fff;border-radius:6px;width:34px;height:34px;cursor:pointer;font-size:18px;">x</button>
+    </div>
+    <div id="matchDetailBody"></div>
+  </div>
+</div>
+
 <script src="app.js"></script>
 <script>
 let allMatches = [];
+let activeDetailMatchId = null;
+
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, ch => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  }[ch]));
+}
 
 function formatDate(dateStr) {
   if (!dateStr) return { dayName: null, day: null, month: null, hours: null, minutes: null };
@@ -84,6 +108,90 @@ function clearMatchFilters() {
   document.getElementById('matchDateSearch').value = '';
   document.getElementById('matchRoundSearch').value = '';
   renderMatches();
+}
+
+function canEditMatchCode(match) {
+  const role = getRole();
+  const playerId = getPlayerId();
+  return role === 'admin' || (playerId && (playerId === match.player1_id || playerId === match.player2_id));
+}
+
+function openMatchDetail(matchId) {
+  const match = allMatches.find(m => m.id === matchId);
+  if (!match) return;
+  activeDetailMatchId = matchId;
+  const fd = formatDate(match.scheduled_date);
+  const timeStr = fd.hours !== null ? `${fd.hours}:${fd.minutes}` : 'Pendiente';
+  const dateStr = fd.dayName ? `${fd.dayName} ${fd.day}/${fd.month}` : 'Fecha pendiente';
+  const p1Name = match.player1_name || match.player1_username || 'J1';
+  const p2Name = match.player2_name || match.player2_username || 'J2';
+  const editable = canEditMatchCode(match);
+  const statusLabel = match.status === 'completed' ? `Resultado ${match.score || ''}` : 'Pendiente';
+  const codeValue = match.match_code || '';
+
+  document.getElementById('matchDetailKicker').textContent = `JORNADA ${match.round_number} · ${dateStr} · ${timeStr}`;
+  document.getElementById('matchDetailTitle').textContent = `${p1Name} vs ${p2Name}`;
+  document.getElementById('matchDetailBody').innerHTML = `
+    <div class="match-detail-grid">
+      <div class="match-detail-player">
+        <div style="font-family:'Orbitron',sans-serif;font-size:11px;color:rgba(255,255,255,0.35);letter-spacing:1px;margin-bottom:6px;">J1</div>
+        <div style="font-size:18px;font-weight:700;color:${match.winner_id === match.player1_id ? '#22c55e' : '#fff'};">${escapeHtml(p1Name)}</div>
+        <div style="font-size:12px;color:rgba(255,255,255,0.35);margin-top:4px;">${escapeHtml(match.player1_tier || '')}</div>
+      </div>
+      <div style="font-family:'Orbitron',sans-serif;font-size:18px;color:#a855f7;font-weight:700;text-align:center;">${match.status === 'completed' ? escapeHtml(match.score || '-') : 'VS'}</div>
+      <div class="match-detail-player" style="text-align:right;">
+        <div style="font-family:'Orbitron',sans-serif;font-size:11px;color:rgba(255,255,255,0.35);letter-spacing:1px;margin-bottom:6px;">J2</div>
+        <div style="font-size:18px;font-weight:700;color:${match.winner_id === match.player2_id ? '#22c55e' : '#fff'};">${escapeHtml(p2Name)}</div>
+        <div style="font-size:12px;color:rgba(255,255,255,0.35);margin-top:4px;">${escapeHtml(match.player2_tier || '')}</div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px;">
+      <div style="padding:10px;border-radius:8px;background:rgba(255,255,255,0.03);"><div style="font-size:11px;color:rgba(255,255,255,0.35);font-family:'Orbitron',sans-serif;">ESTADO</div><div style="color:#fff;font-weight:700;margin-top:4px;">${escapeHtml(statusLabel)}</div></div>
+      <div style="padding:10px;border-radius:8px;background:rgba(255,255,255,0.03);"><div style="font-size:11px;color:rgba(255,255,255,0.35);font-family:'Orbitron',sans-serif;">FECHA</div><div style="color:#fff;font-weight:700;margin-top:4px;">${escapeHtml(dateStr)}</div></div>
+      <div style="padding:10px;border-radius:8px;background:rgba(255,255,255,0.03);"><div style="font-size:11px;color:rgba(255,255,255,0.35);font-family:'Orbitron',sans-serif;">HORA</div><div style="color:#fff;font-weight:700;margin-top:4px;">${escapeHtml(timeStr)}</div></div>
+    </div>
+    ${match.legend1 || match.legend2 ? `<div style="margin-top:12px;color:rgba(255,255,255,0.45);font-size:13px;">Leyendas: ${escapeHtml(match.legend1 || '-')} / ${escapeHtml(match.legend2 || '-')}</div>` : ''}
+    <div class="match-code-box">
+      <div style="font-family:'Orbitron',sans-serif;font-size:12px;letter-spacing:1px;color:rgba(255,215,0,0.7);margin-bottom:8px;">CÓDIGO DE SALA</div>
+      ${editable ? `
+        <form id="publicMatchCodeForm" style="display:flex;gap:8px;">
+          <input id="publicMatchCodeInput" type="text" maxlength="80" value="${escapeHtml(codeValue)}" placeholder="El primero que cree la sala coloca el código aquí" style="flex:1;min-width:0;padding:11px 13px;background:rgba(0,0,0,0.18);border:1px solid rgba(255,255,255,0.12);border-radius:6px;color:#fff;font-family:'Rajdhani',sans-serif;font-size:15px;">
+          <button type="submit" style="padding:11px 16px;background:rgba(123,47,190,0.28);color:#fff;border:1px solid rgba(168,85,247,0.45);border-radius:6px;font-family:'Rajdhani',sans-serif;font-weight:700;cursor:pointer;">GUARDAR</button>
+        </form>
+        <div style="font-size:12px;color:rgba(255,255,255,0.35);margin-top:8px;">Solo J1, J2 o admin pueden cambiar este código.</div>
+      ` : `
+        <div style="font-size:24px;font-family:'Orbitron',sans-serif;color:${codeValue ? '#FFD700' : 'rgba(255,255,255,0.35)'};letter-spacing:1px;">${escapeHtml(codeValue || 'Todavía no hay código')}</div>
+      `}
+    </div>
+  `;
+
+  document.getElementById('matchDetailModal').style.display = 'flex';
+  const form = document.getElementById('publicMatchCodeForm');
+  if (form) form.addEventListener('submit', savePublicMatchCode);
+}
+
+function closeMatchDetail() {
+  document.getElementById('matchDetailModal').style.display = 'none';
+  activeDetailMatchId = null;
+}
+
+async function savePublicMatchCode(e) {
+  e.preventDefault();
+  if (!activeDetailMatchId) return;
+  const input = document.getElementById('publicMatchCodeInput');
+  const { ok, data } = await apiFetch(`/matches/${activeDetailMatchId}/code`, {
+    method: 'PATCH',
+    body: JSON.stringify({ match_code: input.value.trim() })
+  });
+  if (ok) {
+    const match = allMatches.find(m => m.id === activeDetailMatchId);
+    if (match) match.match_code = data.match_code;
+    showNotification(data.match_code ? 'Código de sala guardado' : 'Código de sala eliminado', 'success');
+    openMatchDetail(activeDetailMatchId);
+    renderMatches();
+  } else {
+    showNotification(data.error || 'No se pudo guardar el código', 'error');
+  }
 }
 
 async function loadAllMatches() {
@@ -153,7 +261,7 @@ function renderMatches() {
         rescheduleNote = `<div style="padding:2px 20px 8px;font-size:11px;color:rgba(255,215,0,0.5);font-family:'Rajdhani',sans-serif;letter-spacing:0.5px;">↳ Reprogramada para el ${fd2.dayName.toLowerCase()} ${fd2.day}/${fd2.month}</div>`;
       }
 
-      html += `<div title="Jornada ${round.round_number}" style="display:flex;align-items:center;padding:10px 20px;border-bottom:1px solid rgba(255,255,255,0.04);${isCompleted ? 'opacity:0.7;' : ''}">`;
+      html += `<div class="match-list-row" onclick="openMatchDetail(${m.id})" title="Ver datos de la jornada ${round.round_number}" style="display:flex;align-items:center;padding:10px 20px;border-bottom:1px solid rgba(255,255,255,0.04);${isCompleted ? 'opacity:0.7;' : ''}">`;
 
       html += `<div style="flex:1;display:flex;align-items:center;gap:8px;">
         <span style="font-size:14px;font-weight:600;color:${isCompleted && m.winner_id === m.player1_id ? '#22c55e' : 'rgba(255,255,255,0.8)'};">${m.player1_name || m.player1_username}</span>
@@ -173,10 +281,6 @@ function renderMatches() {
 
       if (m.legend1) {
         html += `<div style="font-size:10px;color:rgba(255,255,255,0.2);font-family:'Rajdhani',sans-serif;margin-left:8px;">${m.legend1}/${m.legend2}</div>`;
-      }
-
-      if (m.match_code) {
-        html += `<div style="font-size:11px;color:rgba(255,215,0,0.65);font-family:'Orbitron',sans-serif;margin-left:10px;">COD ${m.match_code}</div>`;
       }
 
       html += `</div>`;
