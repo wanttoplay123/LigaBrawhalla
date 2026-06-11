@@ -24,7 +24,7 @@
     <li><a href="login.html" class="nav-auth-link" data-page="login">INICIAR SESIÓN</a></li>
     <li class="nav-auth-show nav-auth-admin" style="display:none"><a href="admin.html">PANEL ADMIN</a></li>
   </ul>
-  <div class="hamburger" onclick="toggleMenu()"><span></span><span></span><span></span></div>
+  <div class="hamburger" onclick="toggleMenu()" id="hamburger"><span></span><span></span><span></span></div>
 </nav>
 <nav class="mobile-menu" id="mobileMenu">
   <a href="index.html">INICIO</a>
@@ -33,8 +33,9 @@
   <a href="tournaments.html">TORNEOS</a>
   <a href="hall-of-fame.html">SALÓN DE LA FAMA</a>
   <a class="nav-auth-hide" href="register.html">REGISTRARSE</a>
-  <a href="login.html" class="nav-auth-link" data-page="login">INICIAR SESIÓN</a>
+  <a class="nav-auth-hide" href="login.html">INICIAR SESIÓN</a>
   <a class="nav-auth-show nav-auth-admin" style="display:none" href="admin.html">PANEL ADMIN</a>
+  <a class="nav-auth-show nav-auth-logout" style="display:none" href="#">👤 <span class="nav-auth-username"></span> — SALIR</a>
 </nav>
 
 <section class="page-section">
@@ -43,7 +44,7 @@
       <div class="section-label">CALENDARIO 2026</div>
       <h2 class="section-title">PARTIDAS DE LA <span class="accent">LIGA</span></h2>
     </div>
-    <div style="display:grid;grid-template-columns:1.4fr 0.9fr 0.7fr auto;gap:10px;margin-bottom:18px;">
+    <div class="match-filters" style="display:grid;grid-template-columns:1.4fr 0.9fr 0.7fr auto;gap:10px;margin-bottom:18px;">
       <input id="matchNameSearch" type="search" placeholder="Buscar jugador o rival..." oninput="renderMatches()" style="padding:10px 14px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:#fff;font-family:'Rajdhani',sans-serif;font-size:15px;">
       <input id="matchDateSearch" type="date" onchange="renderMatches()" style="padding:10px 14px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:#fff;font-family:'Rajdhani',sans-serif;font-size:15px;">
       <input id="matchRoundSearch" type="number" min="1" placeholder="Jornada" oninput="renderMatches()" style="padding:10px 14px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:#fff;font-family:'Rajdhani',sans-serif;font-size:15px;">
@@ -249,7 +250,7 @@ function renderMatches() {
 
     const dayDisplay = fd.dayName ? `${fd.dayName} ${fd.day}/${fd.month}` : '—';
 
-    html += `<div style="background:var(--card-bg);border:1px solid var(--card-border);border-radius:12px;margin-bottom:16px;overflow:hidden;backdrop-filter:blur(10px);">`;
+    html += `<div class="round-card" style="background:var(--card-bg);border:1px solid var(--card-border);border-radius:12px;margin-bottom:16px;overflow:hidden;backdrop-filter:blur(10px);">`;
 
     html += `<div style="display:flex;align-items:center;gap:10px;padding:14px 20px;background:rgba(255,255,255,0.03);border-bottom:1px solid var(--card-border);">
       <span style="font-family:'Orbitron',sans-serif;font-size:13px;font-weight:500;letter-spacing:2px;color:rgba(255,255,255,0.3);min-width:36px;">J${round.round_number}</span>

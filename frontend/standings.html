@@ -24,7 +24,7 @@
     <li><a href="login.html" class="nav-auth-link" data-page="login">INICIAR SESIÓN</a></li>
     <li class="nav-auth-show nav-auth-admin" style="display:none"><a href="admin.html">PANEL ADMIN</a></li>
   </ul>
-  <div class="hamburger" onclick="toggleMenu()"><span></span><span></span><span></span></div>
+  <div class="hamburger" onclick="toggleMenu()" id="hamburger"><span></span><span></span><span></span></div>
 </nav>
 <nav class="mobile-menu" id="mobileMenu">
   <a href="index.html">INICIO</a>
@@ -33,9 +33,9 @@
   <a href="tournaments.html">TORNEOS</a>
   <a href="hall-of-fame.html">SALÓN DE LA FAMA</a>
   <a class="nav-auth-hide" href="register.html">REGISTRARSE</a>
-  <a href="login.html" class="nav-auth-link" data-page="login">INICIAR SESIÓN</a>
+  <a class="nav-auth-hide" href="login.html">INICIAR SESIÓN</a>
   <a class="nav-auth-show nav-auth-admin" style="display:none" href="admin.html">PANEL ADMIN</a>
-</nav>
+  <a class="nav-auth-show nav-auth-logout" style="display:none" href="#">👤 <span class="nav-auth-username"></span> — SALIR</a>
 </nav>
 
 <section class="page-section">
@@ -68,13 +68,13 @@ async function loadSeasons() {
     return;
   }
 
-  let html = '<div style="display:flex;align-items:center;gap:12px;background:var(--card-bg);border:1px solid var(--card-border);border-radius:8px;padding:8px 16px;backdrop-filter:blur(10px);">';
+  let html = '<div class="season-selector" style="display:flex;align-items:center;gap:12px;background:var(--card-bg);border:1px solid var(--card-border);border-radius:8px;padding:8px 16px;backdrop-filter:blur(10px);">';
   html += '<span style="font-size:12px;font-family:\'Orbitron\',sans-serif;letter-spacing:1px;color:rgba(255,255,255,0.3);">TEMPORADA</span>';
-  html += '<select id="seasonSelect" onchange="onSeasonChange()" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:#fff;padding:6px 12px;font-family:\'Rajdhani\',sans-serif;font-size:14px;cursor:pointer;">';
+  html += '<select id="seasonSelect" onchange="onSeasonChange()" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);border-radius:6px;color:#fff;padding:8px 36px 8px 12px;font-family:\'Rajdhani\',sans-serif;font-size:14px;cursor:pointer;min-width:0;flex:1;appearance:none;-webkit-appearance:none;background-image:url(\'data:image/svg+xml,%3Csvg xmlns=\\\'http://www.w3.org/2000/svg\\\' width=\\\'12\\\' height=\\\'8\\\' viewBox=\\\'0 0 12 8\\\'%3E%3Cpath d=\\\'M1 1l5 5 5-5\\\' stroke=\\\'%23a855f7\\\' stroke-width=\\\'2\\\' fill=\\\'none\\\' stroke-linecap=\\\'round\\\'/%3E%3C/svg%3E\');background-repeat:no-repeat;background-position:right 12px center;">';
 
   data.forEach(s => {
     const active = s.status === 'active';
-    const label = `${s.name}${active ? ' (ACTIVA)' : ''}${s.champion_name ? ' — Campeón: ' + s.champion_name : ''}`;
+    const label = `${s.name}${active ? ' (ACTIVA)' : ''}`;
     html += `<option value="${s.id}" ${active ? 'selected' : ''}>${label}</option>`;
     if (currentSeasonId === null && active) currentSeasonId = s.id;
   });

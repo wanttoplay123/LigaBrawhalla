@@ -331,6 +331,9 @@
     grid-template-columns: 1fr;
   }
 }
+@media (max-width: 480px) {
+  .join-tournament-btn { font-size: 15px; padding: 10px; letter-spacing: 2px; }
+}
 </style>
 </head>
 <body>
@@ -349,7 +352,7 @@
     <li><a href="login.html" class="nav-auth-link" data-page="login">INICIAR SESIÓN</a></li>
     <li class="nav-auth-show nav-auth-admin" style="display:none"><a href="admin.html">PANEL ADMIN</a></li>
   </ul>
-  <div class="hamburger" onclick="toggleMenu()"><span></span><span></span><span></span></div>
+  <div class="hamburger" onclick="toggleMenu()" id="hamburger"><span></span><span></span><span></span></div>
 </nav>
 <nav class="mobile-menu" id="mobileMenu">
   <a href="index.html">INICIO</a>
@@ -358,8 +361,9 @@
   <a href="tournaments.html">TORNEOS</a>
   <a href="hall-of-fame.html">SALÓN DE LA FAMA</a>
   <a class="nav-auth-hide" href="register.html">REGISTRARSE</a>
-  <a href="login.html" class="nav-auth-link" data-page="login">INICIAR SESIÓN</a>
+  <a class="nav-auth-hide" href="login.html">INICIAR SESIÓN</a>
   <a class="nav-auth-show nav-auth-admin" style="display:none" href="admin.html">PANEL ADMIN</a>
+  <a class="nav-auth-show nav-auth-logout" style="display:none" href="#">👤 <span class="nav-auth-username"></span> — SALIR</a>
 </nav>
 
 <section class="page-section">

@@ -24,9 +24,14 @@
 .btn-action { background:rgba(123,47,190,0.2); color:#a855f7; border:1px solid rgba(123,47,190,0.3); }
 .btn-action:hover { background:rgba(123,47,190,0.3); }
 .admin-form { display:flex; flex-direction:column; gap:12px; }
-.admin-form input, .admin-form select { padding:10px 14px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:6px; color:#fff; font-family:'Rajdhani',sans-serif; font-size:14px; }
-.admin-form input:focus, .admin-form select:focus { border-color:var(--purple); outline:none; }
-.admin-form label { font-size:12px; color:rgba(255,255,255,0.4); font-family:'Orbitron',sans-serif; letter-spacing:1px; }
+.admin-form input { padding:10px 14px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:6px; color:#fff; font-family:'Rajdhani',sans-serif; font-size:14px; }
+.admin-form select { padding:10px 14px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:6px; color:#fff; font-family:'Rajdhani',sans-serif; font-size:14px; appearance:none; -webkit-appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23a855f7' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 12px center; padding-right:36px; }
+.admin-form input:focus { border-color:var(--purple); outline:none; box-shadow:0 0 0 2px rgba(123,47,190,0.2); }
+.admin-form select:focus { border-color:var(--purple); outline:none; box-shadow:0 0 0 2px rgba(123,47,190,0.2); }
+.admin-form label, .admin-card label { font-size:12px; color:rgba(255,255,255,0.4); font-family:'Orbitron',sans-serif; letter-spacing:1px; }
+.admin-card select, .admin-select { padding:10px 14px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.12); border-radius:6px; color:#fff; font-family:'Rajdhani',sans-serif; font-size:14px; width:100%; cursor:pointer; appearance:none; -webkit-appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23a855f7' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 12px center; padding-right:36px; transition:border-color 0.2s, background 0.2s; }
+.admin-card select:hover, .admin-select:hover { background-color:rgba(255,255,255,0.08); }
+.admin-card select:focus, .admin-select:focus { border-color:var(--purple); outline:none; box-shadow:0 0 0 2px rgba(123,47,190,0.2); }
 .game-row { display:flex; align-items:center; gap:12px; padding:6px 10px; background:rgba(255,255,255,0.03); border-radius:6px; border:1px solid rgba(255,255,255,0.06); }
 .game-row input[type="radio"] { accent-color:var(--purple); width:16px; height:16px; cursor:pointer; }
 .game-row input[type="radio"]:disabled { opacity:0.3; }
@@ -36,6 +41,29 @@
 .clickable-match-row:hover { background:rgba(255,255,255,0.04); }
 @media(max-width:768px){ .admin-grid{grid-template-columns:1fr;} }
 @media(max-width:768px){ .admin-filter-grid{grid-template-columns:1fr 1fr;} }
+@media(max-width:768px){ .admin-table th, .admin-table td { padding:6px 6px; font-size:12px; } .admin-table td .admin-btn { font-size:10px; padding:4px 10px; } }
+@media(max-width:480px){ .admin-table th, .admin-table td { padding:4px 4px; font-size:11px; } }
+
+/* ─── ADMIN RESPONSIVE ─── */
+@media (max-width: 480px) {
+  #profileForm div[style*="display:flex"], #startSeasonForm { flex-direction: column !important; }
+  #profileForm div[style*="display:flex"] input, #startSeasonForm input { flex: none !important; width: 100%; }
+  #profileForm div[style*="display:flex"] button, #startSeasonForm button { width: 100%; }
+  #tabPending, #tabCompleted, #tabTournamentPending, #tabTournamentCompleted { font-size: 11px !important; padding: 6px 4px !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .admin-filter-grid button { width: 100%; }
+  .admin-filter-grid input::placeholder { font-size: 12px; }
+  #mgmtPhaseActions { flex-direction: column !important; }
+  #mgmtPhaseActions button { flex: none !important; width: 100%; font-size: 11px; }
+  div[id$="Modal"] > div[style*="padding:"] { padding: 20px 16px !important; }
+  div[id$="Modal"] div[style*="grid-template-columns: 1fr 1fr"] { grid-template-columns: 1fr !important; }
+  div[id$="Modal"] form div[style*="display:flex;"]:last-of-type { flex-direction: column !important; }
+  div[id$="Modal"] form div[style*="display:flex;"]:last-of-type button { width: 100% !important; }
+  #reportModal div[style*="display:flex;gap:12px"] { flex-direction: column !important; align-items: flex-start !important; }
+  .game-row { flex-wrap: wrap; gap: 4px 8px; padding: 6px 8px; }
+  .game-row > span:first-child { min-width: auto !important; font-size: 11px; width: 100%; }
+  .game-row label span { font-size: 13px !important; }
+  .admin-card select, .admin-select { font-size: 13px; padding: 8px 10px; }
+}
 </style>
 </head>
 <body>
@@ -53,7 +81,7 @@
     <li><a href="admin.html" class="active">ADMIN</a></li>
     <li><a href="login.html" class="nav-auth-link" data-page="login" style="color:#ef4444;">CERRAR SESIÓN</a></li>
   </ul>
-  <div class="hamburger" onclick="toggleMenu()"><span></span><span></span><span></span></div>
+  <div class="hamburger" onclick="toggleMenu()" id="hamburger"><span></span><span></span><span></span></div>
 </nav>
 <nav class="mobile-menu" id="mobileMenu">
   <a href="index.html">INICIO</a>
@@ -188,7 +216,7 @@
         <!-- Seleccionar Torneo -->
         <div style="margin-bottom: 16px;">
           <label>Seleccionar Torneo a Administrar</label>
-          <select id="adminTournamentSelect" onchange="onTournamentSelectChange()">
+          <select id="adminTournamentSelect" class="admin-select" onchange="onTournamentSelectChange()">
             <option value="">Selecciona un torneo...</option>
           </select>
         </div>
@@ -448,8 +476,9 @@ async function loadSeasonStatus() {
 
 async function endSeason(id) {
   if (!confirm('¿Seguro de terminar la temporada?')) return;
-  const { ok } = await apiFetch(`/seasons/${id}/end`, { method: 'POST' });
+  const { ok, data } = await apiFetch(`/seasons/${id}/end`, { method: 'POST' });
   if (ok) { showNotification('Temporada finalizada', 'success'); loadSeasonStatus(); }
+  else { showNotification(data.error || 'Error al finalizar temporada', 'error'); }
 }
 
 document.getElementById('startSeasonForm').addEventListener('submit', async (e) => {
@@ -524,7 +553,7 @@ async function loadPendingMatches() {
     div.innerHTML = '<p style="color:rgba(255,255,255,0.4);font-size:14px;">No hay partidas pendientes con esos filtros</p>';
     return;
   }
-  let html = '<table class="admin-table"><tr><th>#</th><th>Jornada</th><th>J1</th><th>J2</th><th>Fecha</th><th>Acción</th></tr>';
+  let html = '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;"><table class="admin-table"><tr><th>#</th><th>Jornada</th><th>J1</th><th>J2</th><th>Fecha</th><th>Acción</th></tr>';
   filtered.forEach((m) => {
     const sDate = m.scheduled_date ? m.scheduled_date.slice(0, 16).replace('T', ' ') : '—';
     const isRescheduled = m.rescheduled == 1;
@@ -541,7 +570,7 @@ async function loadPendingMatches() {
       </td>
     </tr>`;
   });
-    html += '</table>';
+    html += '</table></div>';
   div.innerHTML = html;
 }
 
@@ -559,7 +588,7 @@ async function loadCompletedMatches() {
     div.innerHTML = '<p style="color:rgba(255,255,255,0.4);font-size:14px;">No hay partidas completadas con esos filtros</p>';
     return;
   }
-  let html = '<table class="admin-table"><tr><th>#</th><th>Jornada</th><th>J1</th><th>Score</th><th>J2</th><th>Editar</th></tr>';
+  let html = '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;"><table class="admin-table"><tr><th>#</th><th>Jornada</th><th>J1</th><th>Score</th><th>J2</th><th>Editar</th></tr>';
   filtered.forEach((m) => {
     const codeLabel = m.match_code ? ` · COD ${m.match_code}` : '';
     html += `<tr class="clickable-match-row" onclick="openMatchCodeModal(${m.id},'${(m.player1_name || m.player1_username).replace(/'/g,"\\'")}','${(m.player2_name || m.player2_username).replace(/'/g,"\\'")}','${(m.match_code || '').replace(/'/g,"\\'")}')">
@@ -574,7 +603,7 @@ async function loadCompletedMatches() {
       </td>
     </tr>`;
   });
-    html += '</table>';
+    html += '</table></div>';
   div.innerHTML = html;
 }
 
@@ -653,6 +682,7 @@ document.getElementById('matchCodeForm').addEventListener('submit', async (e) =>
 });
 
 let reportP1Id = null, reportP2Id = null, reportP1Name = '', reportP2Name = '';
+let currentReportMatchId = null;
 let currentFormat = 'bo3';
 let isEditMode = false;
 const FORMAT_GAMES = { bo3: 3, bo5: 5 };
@@ -729,10 +759,8 @@ async function openEditModal(matchId) {
 
   if (m.score && m.score !== '0-0') {
     const selP1 = m.winner_id === m.player1_id;
-    const needWins = FORMAT_WIN[currentFormat];
     let scoreParts = m.score.split('-').map(Number);
     let p1Wins = scoreParts[0], p2Wins = scoreParts[1];
-    let gameIdx = 1;
     for (let g = 1; g <= totalGames; g++) {
       const targetId = (p1Wins > 0 && g <= p1Wins) ? (selP1 ? m.player1_id : m.player2_id) : (selP1 ? m.player2_id : m.player1_id);
       const radio = document.querySelector(`input[name="game${g}"][value="${targetId}"]`);
@@ -854,15 +882,19 @@ async function reverifyTiers() {
   const btn = document.querySelector('button[onclick="reverifyTiers()"]');
   btn.disabled = true;
   btn.textContent = 'VERIFICANDO...';
-  const { ok, data } = await apiFetch('/admin/players/reverify-tiers', { method: 'POST' });
+  try {
+    const { ok, data } = await apiFetch('/admin/players/reverify-tiers', { method: 'POST' });
+    if (ok) {
+      showNotification(data.message, 'success');
+      loadActivePlayers();
+    } else {
+      showNotification('Error al re-verificar', 'error');
+    }
+  } catch (e) {
+    showNotification('Error de conexión al re-verificar', 'error');
+  }
   btn.disabled = false;
   btn.textContent = 'RE-VERIFICAR TIERS';
-  if (ok) {
-    showNotification(data.message, 'success');
-    loadActivePlayers();
-  } else {
-    showNotification('Error al re-verificar', 'error');
-  }
 }
 
 async function expelPlayer(playerId) {
@@ -930,6 +962,15 @@ async function resetUserPassword(userId, username) {
   if (!newPassword || newPassword.length < 6) {
     showNotification('La contrase\u00F1a debe tener al menos 6 caracteres', 'error');
     return;
+  }
+  const { ok, data } = await apiFetch(`/users/${userId}/reset-password`, {
+    method: 'POST',
+    body: JSON.stringify({ new_password: newPassword })
+  });
+  if (ok) {
+    showNotification('Contrase\u00F1a restablecida para ' + username, 'success');
+  } else {
+    showNotification(data.error || 'Error al restablecer contrase\u00F1a', 'error');
   }
 }
 
@@ -1147,7 +1188,7 @@ function renderTournamentMatches() {
     return;
   }
   
-  let html = '<table class="admin-table"><tr><th>Fase / Ronda</th><th>J1</th><th>Score</th><th>J2</th><th>Acción</th></tr>';
+  let html = '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;"><table class="admin-table"><tr><th>Fase / Ronda</th><th>J1</th><th>Score</th><th>J2</th><th>Acción</th></tr>';
   filtered.forEach(m => {
     const p1Name = m.player1_name || m.player1_username || 'BYE';
     const p2Name = m.player2_name || m.player2_username || 'BYE';
@@ -1165,7 +1206,7 @@ function renderTournamentMatches() {
       </td>
     </tr>`;
   });
-  html += '</table>';
+  html += '</table></div>';
   container.innerHTML = html;
 }
 
