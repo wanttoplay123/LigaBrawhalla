@@ -209,3 +209,15 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 });
+
+/* ── MOBILE MENU: toggle ── */
+function toggleMenu() {
+  const menu = document.getElementById('mobileMenu');
+  const ham = document.getElementById('hamburger');
+  if (!menu || !ham) return;
+  const open = menu.classList.toggle('open');
+  ham.children[0].style.transform = open ? 'rotate(45deg) translate(5px,5px)' : '';
+  ham.children[1].style.opacity = open ? '0' : '1';
+  ham.children[2].style.transform = open ? 'rotate(-45deg) translate(5px,-5px)' : '';
+  document.body.style.overflow = open ? 'hidden' : '';
+}

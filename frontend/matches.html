@@ -24,7 +24,7 @@
     <li><a href="login.html" class="nav-auth-link" data-page="login">INICIAR SESIÓN</a></li>
     <li class="nav-auth-show nav-auth-admin" style="display:none"><a href="admin.html">PANEL ADMIN</a></li>
   </ul>
-  <div class="hamburger" onclick="document.getElementById('mobileMenu').classList.toggle('open')"><span></span><span></span><span></span></div>
+  <div class="hamburger" onclick="toggleMenu()"><span></span><span></span><span></span></div>
 </nav>
 <nav class="mobile-menu" id="mobileMenu">
   <a href="index.html">INICIO</a>
@@ -110,10 +110,14 @@ function clearMatchFilters() {
   renderMatches();
 }
 
-function canEditMatchCode(match) {
-  const role = getRole();
+function canEditMatchCode() {
+  return getRole() === 'admin';
+}
+
+function canSeeMatchCode(match) {
+  if (getRole() === 'admin') return true;
   const playerId = getPlayerId();
-  return role === 'admin' || (playerId && (playerId === match.player1_id || playerId === match.player2_id));
+  return playerId && (playerId === match.player1_id || playerId === match.player2_id);
 }
 
 function openMatchDetail(matchId) {
@@ -125,7 +129,8 @@ function openMatchDetail(matchId) {
   const dateStr = fd.dayName ? `${fd.dayName} ${fd.day}/${fd.month}` : 'Fecha pendiente';
   const p1Name = match.player1_name || match.player1_username || 'J1';
   const p2Name = match.player2_name || match.player2_username || 'J2';
-  const editable = canEditMatchCode(match);
+  const editable = canEditMatchCode();
+  const canSee = canSeeMatchCode(match);
   const statusLabel = match.status === 'completed' ? `Resultado ${match.score || ''}` : 'Pendiente';
   const codeValue = match.match_code || '';
 
@@ -151,18 +156,20 @@ function openMatchDetail(matchId) {
       <div style="padding:10px;border-radius:8px;background:rgba(255,255,255,0.03);"><div style="font-size:11px;color:rgba(255,255,255,0.35);font-family:'Orbitron',sans-serif;">HORA</div><div style="color:#fff;font-weight:700;margin-top:4px;">${escapeHtml(timeStr)}</div></div>
     </div>
     ${match.legend1 || match.legend2 ? `<div style="margin-top:12px;color:rgba(255,255,255,0.45);font-size:13px;">Leyendas: ${escapeHtml(match.legend1 || '-')} / ${escapeHtml(match.legend2 || '-')}</div>` : ''}
+    ${canSee ? `
     <div class="match-code-box">
       <div style="font-family:'Orbitron',sans-serif;font-size:12px;letter-spacing:1px;color:rgba(255,215,0,0.7);margin-bottom:8px;">CÓDIGO DE SALA</div>
       ${editable ? `
         <form id="publicMatchCodeForm" style="display:flex;gap:8px;">
-          <input id="publicMatchCodeInput" type="text" maxlength="80" value="${escapeHtml(codeValue)}" placeholder="El primero que cree la sala coloca el código aquí" style="flex:1;min-width:0;padding:11px 13px;background:rgba(0,0,0,0.18);border:1px solid rgba(255,255,255,0.12);border-radius:6px;color:#fff;font-family:'Rajdhani',sans-serif;font-size:15px;">
+          <input id="publicMatchCodeInput" type="text" maxlength="80" value="${escapeHtml(codeValue)}" placeholder="Escribe el código de la sala aquí" style="flex:1;min-width:0;padding:11px 13px;background:rgba(0,0,0,0.18);border:1px solid rgba(255,255,255,0.12);border-radius:6px;color:#fff;font-family:'Rajdhani',sans-serif;font-size:15px;">
           <button type="submit" style="padding:11px 16px;background:rgba(123,47,190,0.28);color:#fff;border:1px solid rgba(168,85,247,0.45);border-radius:6px;font-family:'Rajdhani',sans-serif;font-weight:700;cursor:pointer;">GUARDAR</button>
         </form>
-        <div style="font-size:12px;color:rgba(255,255,255,0.35);margin-top:8px;">Solo J1, J2 o admin pueden cambiar este código.</div>
+        <div style="font-size:12px;color:rgba(255,255,255,0.35);margin-top:8px;">Solo el admin puede cambiar este código.</div>
       ` : `
         <div style="font-size:24px;font-family:'Orbitron',sans-serif;color:${codeValue ? '#FFD700' : 'rgba(255,255,255,0.35)'};letter-spacing:1px;">${escapeHtml(codeValue || 'Todavía no hay código')}</div>
       `}
     </div>
+    ` : ''}
   `;
 
   document.getElementById('matchDetailModal').style.display = 'flex';

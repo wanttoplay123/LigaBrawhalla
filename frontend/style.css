@@ -102,7 +102,7 @@ nav::before {
 
 .nav-actions { display: flex; gap: 10px; align-items: center; }
 .hamburger { display: none; flex-direction: column; gap: 5px; cursor: pointer; padding: 4px; }
-.hamburger span { width: 22px; height: 2px; background: #fff; border-radius: 2px; transition: all 0.3s; }
+.hamburger span { width: 22px; height: 2px; background: #fff; border-radius: 2px; transition: all 0.3s; display: block; }
 
 .mobile-menu {
   display: none; position: fixed; top: 68px; left: 0; right: 0; bottom: 0;

@@ -687,7 +687,32 @@ app.get('/api/matches', async (req, res) => {
 
     query += ' ORDER BY r.round_number ASC, m.id ASC';
     const result = await pool.query(query, queryParams);
-    res.json(result.rows);
+
+    // Determine requesting user
+    let reqPlayerId = null;
+    let reqIsAdmin = false;
+    const authHeader = req.headers.authorization;
+    if (authHeader) {
+      try {
+        const token = authHeader.split(' ')[1];
+        const user = jwt.verify(token, JWT_SECRET);
+        reqIsAdmin = user.role === 'admin';
+        if (!reqIsAdmin) {
+          const playerRow = await pool.query('SELECT id FROM players WHERE user_id = $1', [user.id]);
+          if (playerRow.rows.length > 0) reqPlayerId = playerRow.rows[0].id;
+        }
+      } catch {}
+    }
+
+    // Filter match_code: only admin or match participants can see it
+    const rows = result.rows.map(m => {
+      if (!reqIsAdmin && reqPlayerId !== m.player1_id && reqPlayerId !== m.player2_id) {
+        return { ...m, match_code: null };
+      }
+      return m;
+    });
+
+    res.json(rows);
   } catch (e) {
     res.status(500).json({ error: 'Server error' });
   }
@@ -944,27 +969,16 @@ app.patch('/api/admin/matches/:id/code', authMiddleware, adminMiddleware, async 
   }
 });
 
-app.patch('/api/matches/:id/code', authMiddleware, async (req, res) => {
+app.patch('/api/matches/:id/code', authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const { match_code } = req.body;
     const cleanCode = String(match_code || '').trim().slice(0, 80);
 
     const matchResult = await pool.query(
-      'SELECT id, player1_id, player2_id FROM matches WHERE id = $1',
+      'SELECT id FROM matches WHERE id = $1',
       [req.params.id]
     );
     if (matchResult.rows.length === 0) return res.status(404).json({ error: 'Match not found' });
-
-    const match = matchResult.rows[0];
-    if (req.user.role !== 'admin') {
-      const playerResult = await pool.query('SELECT id FROM players WHERE user_id = $1', [req.user.id]);
-      if (playerResult.rows.length === 0) return res.status(403).json({ error: 'Player profile required' });
-
-      const playerId = playerResult.rows[0].id;
-      if (playerId !== match.player1_id && playerId !== match.player2_id) {
-        return res.status(403).json({ error: 'Only match players can update this code' });
-      }
-    }
 
     await pool.query(
       'UPDATE matches SET match_code = $1 WHERE id = $2',
