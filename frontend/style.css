@@ -390,7 +390,7 @@ nav::before {
     position: absolute; top: 12px; left: 14px; font-size: 20px;
   }
   .standings-row .col-player {
-    flex: 1 1 100%; padding-left: 32px; margin-bottom: 2px;
+    flex: 1 1 100%; padding-left: 32px; padding-right: 60px; margin-bottom: 2px;
   }
   .standings-row .player-name { font-size: 15px; }
   .standings-row .player-user { font-size: 11px; }
@@ -399,18 +399,23 @@ nav::before {
     padding: 2px 8px; background: rgba(255,255,255,0.04); border-radius: 4px;
   }
   .standings-row .col-pj, .standings-row .col-w, .standings-row .col-l,
-  .standings-row .col-dif, .standings-row .col-pts, .standings-row .col-wr {
+  .standings-row .col-dif, .standings-row .col-pts {
     font-size: 12px; padding: 2px 8px;
     background: rgba(255,255,255,0.04); border-radius: 4px;
     white-space: nowrap;
   }
+  .standings-row .col-wr {
+    position: absolute; top: 12px; right: 14px;
+    font-size: 14px; font-weight: 700; color: var(--gold);
+    padding: 2px 8px; white-space: nowrap;
+  }
+  .standings-row .col-wr::before { content: none; }
   .standings-row .col-pj::before { content:'PJ:'; color:rgba(255,255,255,0.3); font-size:10px; margin-right:2px; }
   .standings-row .col-w::before { content:'G:'; color:rgba(255,255,255,0.3); font-size:10px; margin-right:2px; }
   .standings-row .col-l::before { content:'P:'; color:rgba(255,255,255,0.3); font-size:10px; margin-right:2px; }
   .standings-row .col-dif::before { content:'DIF:'; color:rgba(255,255,255,0.3); font-size:10px; margin-right:2px; }
   .standings-row .col-pts { font-size: 14px; }
   .standings-row .col-pts::before { content:'PTS:'; color:rgba(255,255,255,0.3); font-size:10px; margin-right:2px; }
-  .standings-row .col-wr::before { content:'%:'; color:rgba(255,255,255,0.3); font-size:10px; margin-right:2px; }
   .match-filters { grid-template-columns: none; display: flex; gap: 8px; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 4px; }
   .match-filters > * { flex: 0 0 auto; min-width: 140px; }
   .round-card { overflow: hidden; }
