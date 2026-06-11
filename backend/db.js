@@ -61,6 +61,7 @@ async function initDB() {
         status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'completed', 'cancelled')),
         scheduled_date TEXT,
         rescheduled INTEGER DEFAULT 0,
+        match_code TEXT,
         played_date TEXT,
         created_at TIMESTAMPTZ DEFAULT NOW()
       );
@@ -136,6 +137,8 @@ async function initDB() {
       );
 
       DELETE FROM matches WHERE status = 'cancelled';
+
+      ALTER TABLE matches ADD COLUMN IF NOT EXISTS match_code TEXT;
 
       -- Allow groups D and E for new 5-group format
       ALTER TABLE tournament_players DROP CONSTRAINT IF EXISTS tournament_players_group_name_check;

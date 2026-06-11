@@ -388,7 +388,7 @@ app.get('/api/admin/matches/pending', authMiddleware, adminMiddleware, async (re
     if (!seasonId) return res.json([]);
 
     const result = await pool.query(`
-      SELECT m.id, m.round_id, r.round_number, m.scheduled_date, m.rescheduled,
+      SELECT m.id, m.round_id, r.round_number, m.scheduled_date, m.rescheduled, m.match_code,
              p1.brawlhalla_name AS player1_name, p2.brawlhalla_name AS player2_name,
              u1.username AS player1_username, u2.username AS player2_username,
              p1.id AS player1_id, p2.id AS player2_id
@@ -663,7 +663,7 @@ app.get('/api/matches', async (req, res) => {
     if (!seasonId) return res.json([]);
 
     let query = `
-      SELECT m.id, m.player1_id, m.player2_id, m.winner_id, m.legend1, m.legend2, m.score, m.status, m.scheduled_date, m.played_date, m.rescheduled,
+      SELECT m.id, m.player1_id, m.player2_id, m.winner_id, m.legend1, m.legend2, m.score, m.status, m.scheduled_date, m.played_date, m.rescheduled, m.match_code,
              r.round_number, r.id AS round_id,
              p1.brawlhalla_name AS player1_name, p1.tier AS player1_tier,
              p2.brawlhalla_name AS player2_name, p2.tier AS player2_tier,
@@ -819,7 +819,7 @@ app.get('/api/admin/matches/completed', authMiddleware, adminMiddleware, async (
 
     const result = await pool.query(`
       SELECT m.id, m.round_id, r.round_number, m.player1_id, m.player2_id, m.winner_id,
-             m.legend1, m.legend2, m.score, m.status, m.played_date, m.scheduled_date, m.rescheduled,
+             m.legend1, m.legend2, m.score, m.status, m.played_date, m.scheduled_date, m.rescheduled, m.match_code,
              p1.brawlhalla_name AS player1_name, p2.brawlhalla_name AS player2_name,
              u1.username AS player1_username, u2.username AS player2_username
       FROM matches m
@@ -919,6 +919,25 @@ app.patch('/api/matches/:id/reschedule', authMiddleware, adminMiddleware, async 
       [scheduled_date, req.params.id]
     );
     res.json({ message: 'Match rescheduled' });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.patch('/api/admin/matches/:id/code', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { match_code } = req.body;
+    const cleanCode = String(match_code || '').trim().slice(0, 80);
+
+    const matchResult = await pool.query('SELECT id FROM matches WHERE id = $1', [req.params.id]);
+    if (matchResult.rows.length === 0) return res.status(404).json({ error: 'Match not found' });
+
+    await pool.query(
+      'UPDATE matches SET match_code = $1 WHERE id = $2',
+      [cleanCode || null, req.params.id]
+    );
+    res.json({ message: 'Match code updated', match_code: cleanCode || null });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'Server error' });

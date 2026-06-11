@@ -44,7 +44,11 @@
       <div class="section-label">CLASIFICACIÓN</div>
       <h2 class="section-title">TABLA DE <span class="accent">POSICIONES</span></h2>
     </div>
-    <div id="seasonSelector" style="display:flex;justify-content:center;margin-bottom:24px;"></div>
+    <div id="seasonSelector" style="display:flex;justify-content:center;margin-bottom:16px;"></div>
+    <div style="display:flex;gap:10px;align-items:center;justify-content:center;margin-bottom:24px;flex-wrap:wrap;">
+      <input id="rankingSearch" type="search" placeholder="Buscar jugador en ranking..." oninput="renderStandings()" style="width:min(420px,100%);padding:10px 14px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:#fff;font-family:'Rajdhani',sans-serif;font-size:15px;">
+      <button type="button" onclick="document.getElementById('rankingSearch').value='';renderStandings();" style="padding:10px 14px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:rgba(255,255,255,0.7);font-family:'Rajdhani',sans-serif;font-weight:700;cursor:pointer;">LIMPIAR</button>
+    </div>
     <div id="standingsContent">
       <div style="text-align:center;padding:60px 0;color:rgba(255,255,255,0.4);font-size:18px;">Cargando...</div>
     </div>
@@ -54,6 +58,7 @@
 <script src="app.js"></script>
 <script>
 let currentSeasonId = null;
+let standingsData = [];
 
 async function loadSeasons() {
   const { ok, data } = await apiFetch('/seasons/all');
@@ -94,7 +99,21 @@ async function loadStandings(seasonId) {
     container.innerHTML = '<div style="text-align:center;padding:60px 0;"><p style="color:rgba(255,255,255,0.4);font-size:18px;">No hay jugadores en la liga aún.</p><a href="register.html" class="cta-primary" style="display:inline-flex;margin-top:20px;">REGISTRARSE</a></div>';
     return;
   }
+  standingsData = data;
+  renderStandings();
+}
 
+function renderStandings() {
+  const container = document.getElementById('standingsContent');
+  const search = (document.getElementById('rankingSearch')?.value || '').trim().toLowerCase();
+  const filtered = standingsData.filter(p => {
+    const name = `${p.brawlhalla_name || ''} ${p.username || ''}`.toLowerCase();
+    return !search || name.includes(search);
+  });
+  if (filtered.length === 0) {
+    container.innerHTML = '<div style="text-align:center;padding:40px 0;color:rgba(255,255,255,0.45);font-size:16px;">No se encontraron jugadores con ese nombre.</div>';
+    return;
+  }
   let html = `<div class="standings-table">
     <div class="standings-header">
       <span class="col-pos">#</span>
@@ -108,7 +127,8 @@ async function loadStandings(seasonId) {
       <span class="col-wr">%</span>
     </div>`;
 
-  data.forEach((p, i) => {
+  filtered.forEach((p) => {
+    const i = standingsData.indexOf(p);
     const posClass = i === 0 ? 'pos-gold' : i === 1 ? 'pos-silver' : i === 2 ? 'pos-bronze' : '';
     const dif = (p.wins || 0) - (p.losses || 0);
     const difClass = dif > 0 ? 'color:#22c55e;' : dif < 0 ? 'color:#ef4444;' : 'color:rgba(255,255,255,0.3);';

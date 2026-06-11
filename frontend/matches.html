@@ -43,6 +43,12 @@
       <div class="section-label">CALENDARIO 2026</div>
       <h2 class="section-title">PARTIDAS DE LA <span class="accent">LIGA</span></h2>
     </div>
+    <div style="display:grid;grid-template-columns:1.4fr 0.9fr 0.7fr auto;gap:10px;margin-bottom:18px;">
+      <input id="matchNameSearch" type="search" placeholder="Buscar jugador o rival..." oninput="renderMatches()" style="padding:10px 14px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:#fff;font-family:'Rajdhani',sans-serif;font-size:15px;">
+      <input id="matchDateSearch" type="date" onchange="renderMatches()" style="padding:10px 14px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:#fff;font-family:'Rajdhani',sans-serif;font-size:15px;">
+      <input id="matchRoundSearch" type="number" min="1" placeholder="Jornada" oninput="renderMatches()" style="padding:10px 14px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:#fff;font-family:'Rajdhani',sans-serif;font-size:15px;">
+      <button type="button" onclick="clearMatchFilters()" style="padding:10px 14px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:rgba(255,255,255,0.7);font-family:'Rajdhani',sans-serif;font-weight:700;cursor:pointer;">LIMPIAR</button>
+    </div>
     <div id="matchesContent">
       <div style="text-align:center;padding:60px 0;color:rgba(255,255,255,0.4);font-size:18px;">Cargando...</div>
     </div>
@@ -51,6 +57,8 @@
 
 <script src="app.js"></script>
 <script>
+let allMatches = [];
+
 function formatDate(dateStr) {
   if (!dateStr) return { dayName: null, day: null, month: null, hours: null, minutes: null };
   const d = new Date(dateStr.includes(' ') ? dateStr.replace(' ', 'T') : dateStr);
@@ -64,6 +72,20 @@ function formatDate(dateStr) {
   };
 }
 
+function dateKey(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr.includes(' ') ? dateStr.replace(' ', 'T') : dateStr);
+  if (Number.isNaN(d.getTime())) return '';
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function clearMatchFilters() {
+  document.getElementById('matchNameSearch').value = '';
+  document.getElementById('matchDateSearch').value = '';
+  document.getElementById('matchRoundSearch').value = '';
+  renderMatches();
+}
+
 async function loadAllMatches() {
   const container = document.getElementById('matchesContent');
   const { ok, data } = await apiFetch('/matches');
@@ -72,9 +94,30 @@ async function loadAllMatches() {
     container.innerHTML = '<div style="text-align:center;padding:60px 0;"><div style="font-size:48px;margin-bottom:16px;opacity:0.3;">⚔</div><div style="color:rgba(255,255,255,0.4);font-size:16px;">No hay partidas — No hay temporada activa</div></div>';
     return;
   }
+  allMatches = data;
+  renderMatches();
+}
+
+function renderMatches() {
+  const container = document.getElementById('matchesContent');
+  const nameSearch = (document.getElementById('matchNameSearch')?.value || '').trim().toLowerCase();
+  const dateSearch = document.getElementById('matchDateSearch')?.value || '';
+  const roundSearch = document.getElementById('matchRoundSearch')?.value;
+  const filtered = allMatches.filter(m => {
+    const names = `${m.player1_name || m.player1_username || ''} ${m.player2_name || m.player2_username || ''}`.toLowerCase();
+    const matchesName = !nameSearch || names.includes(nameSearch);
+    const matchesDate = !dateSearch || dateKey(m.scheduled_date) === dateSearch;
+    const matchesRound = !roundSearch || Number(m.round_number) === Number(roundSearch);
+    return matchesName && matchesDate && matchesRound;
+  });
+
+  if (filtered.length === 0) {
+    container.innerHTML = '<div style="text-align:center;padding:50px 0;color:rgba(255,255,255,0.45);font-size:16px;">No hay partidas con esos filtros.</div>';
+    return;
+  }
 
   const rounds = {};
-  data.forEach(m => {
+  filtered.forEach(m => {
     const rn = m.round_number;
     if (!rounds[rn]) rounds[rn] = { round_number: rn, matches: [] };
     rounds[rn].matches.push(m);
@@ -110,7 +153,7 @@ async function loadAllMatches() {
         rescheduleNote = `<div style="padding:2px 20px 8px;font-size:11px;color:rgba(255,215,0,0.5);font-family:'Rajdhani',sans-serif;letter-spacing:0.5px;">↳ Reprogramada para el ${fd2.dayName.toLowerCase()} ${fd2.day}/${fd2.month}</div>`;
       }
 
-      html += `<div style="display:flex;align-items:center;padding:10px 20px;border-bottom:1px solid rgba(255,255,255,0.04);${isCompleted ? 'opacity:0.7;' : ''}">`;
+      html += `<div title="Jornada ${round.round_number}" style="display:flex;align-items:center;padding:10px 20px;border-bottom:1px solid rgba(255,255,255,0.04);${isCompleted ? 'opacity:0.7;' : ''}">`;
 
       html += `<div style="flex:1;display:flex;align-items:center;gap:8px;">
         <span style="font-size:14px;font-weight:600;color:${isCompleted && m.winner_id === m.player1_id ? '#22c55e' : 'rgba(255,255,255,0.8)'};">${m.player1_name || m.player1_username}</span>
@@ -130,6 +173,10 @@ async function loadAllMatches() {
 
       if (m.legend1) {
         html += `<div style="font-size:10px;color:rgba(255,255,255,0.2);font-family:'Rajdhani',sans-serif;margin-left:8px;">${m.legend1}/${m.legend2}</div>`;
+      }
+
+      if (m.match_code) {
+        html += `<div style="font-size:11px;color:rgba(255,215,0,0.65);font-family:'Orbitron',sans-serif;margin-left:10px;">COD ${m.match_code}</div>`;
       }
 
       html += `</div>`;

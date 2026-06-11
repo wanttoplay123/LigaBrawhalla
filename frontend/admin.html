@@ -30,7 +30,12 @@
 .game-row { display:flex; align-items:center; gap:12px; padding:6px 10px; background:rgba(255,255,255,0.03); border-radius:6px; border:1px solid rgba(255,255,255,0.06); }
 .game-row input[type="radio"] { accent-color:var(--purple); width:16px; height:16px; cursor:pointer; }
 .game-row input[type="radio"]:disabled { opacity:0.3; }
+.admin-filter-grid { display:grid; grid-template-columns:1.4fr 0.9fr 0.7fr auto; gap:8px; margin-bottom:12px; }
+.admin-filter-grid input { min-width:0; padding:9px 12px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:6px; color:#fff; font-family:'Rajdhani',sans-serif; font-size:14px; }
+.clickable-match-row { cursor:pointer; transition:background 0.2s; }
+.clickable-match-row:hover { background:rgba(255,255,255,0.04); }
 @media(max-width:768px){ .admin-grid{grid-template-columns:1fr;} }
+@media(max-width:768px){ .admin-filter-grid{grid-template-columns:1fr 1fr;} }
 </style>
 </head>
 <body>
@@ -117,6 +122,12 @@
         <div style="display:flex;gap:8px;margin-bottom:12px;">
           <button id="tabPending" class="admin-btn btn-action" onclick="switchTab('pending')" style="flex:1;">PENDIENTES</button>
           <button id="tabCompleted" class="admin-btn" onclick="switchTab('completed')" style="flex:1;background:rgba(255,255,255,0.05);color:rgba(255,255,255,0.4);border:1px solid rgba(255,255,255,0.1);">COMPLETADAS</button>
+        </div>
+        <div class="admin-filter-grid">
+          <input id="adminMatchNameFilter" type="search" placeholder="Buscar jugador o rival..." oninput="refreshActiveTab()">
+          <input id="adminMatchDateFilter" type="date" onchange="refreshActiveTab()">
+          <input id="adminMatchRoundFilter" type="number" min="1" placeholder="Jornada" oninput="refreshActiveTab()">
+          <button type="button" class="admin-btn" onclick="clearAdminMatchFilters()" style="background:rgba(255,255,255,0.05);color:rgba(255,255,255,0.65);border:1px solid rgba(255,255,255,0.1);">LIMPIAR</button>
         </div>
         <div id="matchesContainer">Cargando...</div>
       </div>
@@ -268,6 +279,22 @@
       <div style="display:flex;gap:8px;margin-top:8px;">
         <button type="submit" class="btn-action admin-btn" style="flex:1;">REPROGRAMAR</button>
         <button type="button" class="admin-btn btn-danger" onclick="closeRescheduleModal()" style="flex:1;">CANCELAR</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Match Code Modal -->
+<div id="matchCodeModal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);align-items:center;justify-content:center;">
+  <div style="background:var(--dark3);border:1px solid var(--card-border);border-radius:12px;padding:28px;max-width:420px;width:90%;">
+    <h3 style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;color:#fff;margin-bottom:8px;">CÓDIGO DE PARTIDA</h3>
+    <p id="matchCodeInfo" style="font-size:13px;color:rgba(255,255,255,0.45);margin-bottom:16px;"></p>
+    <form id="matchCodeForm" class="admin-form">
+      <label>Código / sala</label>
+      <input type="text" id="matchCodeInput" maxlength="80" placeholder="Ej: 123456">
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <button type="submit" class="btn-action admin-btn" style="flex:1;">GUARDAR</button>
+        <button type="button" class="admin-btn btn-danger" onclick="closeMatchCodeModal()" style="flex:1;">CANCELAR</button>
       </div>
     </form>
   </div>
@@ -444,6 +471,34 @@ document.getElementById('startSeasonForm').addEventListener('submit', async (e) 
 
 // ─── MATCHES TABS ───
 let currentMatchTab = 'pending';
+let adminMatchCache = [];
+
+function adminMatchDateKey(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr.includes(' ') ? dateStr.replace(' ', 'T') : dateStr);
+  if (Number.isNaN(d.getTime())) return '';
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function getFilteredAdminMatches(data) {
+  const nameSearch = (document.getElementById('adminMatchNameFilter')?.value || '').trim().toLowerCase();
+  const dateSearch = document.getElementById('adminMatchDateFilter')?.value || '';
+  const roundSearch = document.getElementById('adminMatchRoundFilter')?.value;
+  return data.filter(m => {
+    const names = `${m.player1_name || m.player1_username || ''} ${m.player2_name || m.player2_username || ''}`.toLowerCase();
+    const matchesName = !nameSearch || names.includes(nameSearch);
+    const matchesDate = !dateSearch || adminMatchDateKey(m.scheduled_date) === dateSearch;
+    const matchesRound = !roundSearch || Number(m.round_number) === Number(roundSearch);
+    return matchesName && matchesDate && matchesRound;
+  });
+}
+
+function clearAdminMatchFilters() {
+  document.getElementById('adminMatchNameFilter').value = '';
+  document.getElementById('adminMatchDateFilter').value = '';
+  document.getElementById('adminMatchRoundFilter').value = '';
+  refreshActiveTab();
+}
 
 function switchTab(tab) {
   currentMatchTab = tab;
@@ -463,19 +518,26 @@ async function loadPendingMatches() {
     div.innerHTML = '<p style="color:rgba(255,255,255,0.4);font-size:14px;">No hay partidas pendientes</p>';
     return;
   }
+  adminMatchCache = data;
+  const filtered = getFilteredAdminMatches(data);
+  if (filtered.length === 0) {
+    div.innerHTML = '<p style="color:rgba(255,255,255,0.4);font-size:14px;">No hay partidas pendientes con esos filtros</p>';
+    return;
+  }
   let html = '<table class="admin-table"><tr><th>#</th><th>Jornada</th><th>J1</th><th>J2</th><th>Fecha</th><th>Acción</th></tr>';
-  data.forEach((m) => {
+  filtered.forEach((m) => {
     const sDate = m.scheduled_date ? m.scheduled_date.slice(0, 16).replace('T', ' ') : '—';
     const isRescheduled = m.rescheduled == 1;
-    html += `<tr>
+    const codeLabel = m.match_code ? ` · COD ${m.match_code}` : '';
+    html += `<tr class="clickable-match-row" onclick="openMatchCodeModal(${m.id},'${(m.player1_name || m.player1_username).replace(/'/g,"\\'")}','${(m.player2_name || m.player2_username).replace(/'/g,"\\'")}','${(m.match_code || '').replace(/'/g,"\\'")}')">
       <td>${m.id}</td>
-      <td>${m.round_number}</td>
+      <td>J${m.round_number}${codeLabel}</td>
       <td>${m.player1_name || m.player1_username}</td>
       <td>${m.player2_name || m.player2_username}</td>
       <td style="font-size:12px;color:${isRescheduled ? 'rgba(255,215,0,0.6)' : 'rgba(255,255,255,0.5)'};">${isRescheduled ? '🔄 ' : ''}${sDate}</td>
       <td style="display:flex;gap:4px;">
-        <button class="admin-btn btn-action" onclick="openReportModal(${m.id},${m.player1_id},${m.player2_id},'${(m.player1_name || m.player1_username).replace(/'/g,"\\'")}','${(m.player2_name || m.player2_username).replace(/'/g,"\\'")}')">REPORTAR</button>
-        <button class="admin-btn btn-action" onclick="openRescheduleModal(${m.id},'${sDate}')" style="background:rgba(255,215,0,0.15);color:var(--gold);border-color:rgba(255,215,0,0.3);">🕐</button>
+        <button class="admin-btn btn-action" onclick="event.stopPropagation();openReportModal(${m.id},${m.player1_id},${m.player2_id},'${(m.player1_name || m.player1_username).replace(/'/g,"\\'")}','${(m.player2_name || m.player2_username).replace(/'/g,"\\'")}')">REPORTAR</button>
+        <button class="admin-btn btn-action" onclick="event.stopPropagation();openRescheduleModal(${m.id},'${sDate}')" style="background:rgba(255,215,0,0.15);color:var(--gold);border-color:rgba(255,215,0,0.3);">🕐</button>
       </td>
     </tr>`;
   });
@@ -491,17 +553,24 @@ async function loadCompletedMatches() {
     div.innerHTML = '<p style="color:rgba(255,255,255,0.4);font-size:14px;">No hay partidas completadas</p>';
     return;
   }
+  adminMatchCache = data;
+  const filtered = getFilteredAdminMatches(data);
+  if (filtered.length === 0) {
+    div.innerHTML = '<p style="color:rgba(255,255,255,0.4);font-size:14px;">No hay partidas completadas con esos filtros</p>';
+    return;
+  }
   let html = '<table class="admin-table"><tr><th>#</th><th>Jornada</th><th>J1</th><th>Score</th><th>J2</th><th>Editar</th></tr>';
-  data.forEach((m) => {
-    html += `<tr>
+  filtered.forEach((m) => {
+    const codeLabel = m.match_code ? ` · COD ${m.match_code}` : '';
+    html += `<tr class="clickable-match-row" onclick="openMatchCodeModal(${m.id},'${(m.player1_name || m.player1_username).replace(/'/g,"\\'")}','${(m.player2_name || m.player2_username).replace(/'/g,"\\'")}','${(m.match_code || '').replace(/'/g,"\\'")}')">
       <td>${m.id}</td>
-      <td>${m.round_number}</td>
+      <td>J${m.round_number}${codeLabel}</td>
       <td>${m.player1_name || m.player1_username}</td>
       <td style="text-align:center;font-weight:600;color:#a855f7;">${m.score || '—'}</td>
       <td>${m.player2_name || m.player2_username}</td>
       <td style="display:flex;gap:4px;">
-        <button class="admin-btn btn-action" onclick="openEditModal(${m.id})">EDITAR</button>
-        <button class="admin-btn btn-danger" onclick="revertMatch(${m.id})">↺</button>
+        <button class="admin-btn btn-action" onclick="event.stopPropagation();openEditModal(${m.id})">EDITAR</button>
+        <button class="admin-btn btn-danger" onclick="event.stopPropagation();revertMatch(${m.id})">↺</button>
       </td>
     </tr>`;
   });
@@ -548,6 +617,38 @@ document.getElementById('rescheduleForm').addEventListener('submit', async (e) =
     refreshActiveTab();
   } else {
     showNotification(data.error || 'Error al reprogramar', 'error');
+  }
+});
+
+let matchCodeMatchId = null;
+
+function openMatchCodeModal(matchId, p1Name, p2Name, currentCode) {
+  matchCodeMatchId = matchId;
+  document.getElementById('matchCodeInfo').textContent = `Partida #${matchId}: ${p1Name} vs ${p2Name}`;
+  document.getElementById('matchCodeInput').value = currentCode || '';
+  document.getElementById('matchCodeModal').style.display = 'flex';
+  setTimeout(() => document.getElementById('matchCodeInput').focus(), 50);
+}
+
+function closeMatchCodeModal() {
+  document.getElementById('matchCodeModal').style.display = 'none';
+  matchCodeMatchId = null;
+}
+
+document.getElementById('matchCodeForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  if (!matchCodeMatchId) return;
+  const matchCode = document.getElementById('matchCodeInput').value.trim();
+  const { ok, data } = await apiFetch(`/admin/matches/${matchCodeMatchId}/code`, {
+    method: 'PATCH',
+    body: JSON.stringify({ match_code: matchCode })
+  });
+  if (ok) {
+    showNotification(matchCode ? 'Código guardado' : 'Código eliminado', 'success');
+    closeMatchCodeModal();
+    refreshActiveTab();
+  } else {
+    showNotification(data.error || 'Error al guardar código', 'error');
   }
 });
 
