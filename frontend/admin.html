@@ -39,10 +39,84 @@
 .admin-filter-grid input { min-width:0; padding:9px 12px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:6px; color:#fff; font-family:'Rajdhani',sans-serif; font-size:14px; }
 .clickable-match-row { cursor:pointer; transition:background 0.2s; }
 .clickable-match-row:hover { background:rgba(255,255,255,0.04); }
-@media(max-width:768px){ .admin-grid{grid-template-columns:1fr;} }
-@media(max-width:768px){ .admin-filter-grid{grid-template-columns:1fr 1fr;} }
-@media(max-width:768px){ .admin-table th, .admin-table td { padding:6px 6px; font-size:12px; } .admin-table td .admin-btn { font-size:10px; padding:4px 10px; } }
-@media(max-width:480px){ .admin-table th, .admin-table td { padding:4px 4px; font-size:11px; } }
+
+.admin-mobile-nav { display:none; position:relative; margin-bottom:16px; }
+.admin-mobile-nav-trigger {
+  display:flex; align-items:center; justify-content:space-between; width:100%;
+  padding:12px 14px; background:rgba(123,47,190,0.18); border:1px solid rgba(123,47,190,0.35); border-radius:8px;
+  color:#fff; font-family:'Rajdhani',sans-serif; font-size:13px; font-weight:600; letter-spacing:1px;
+  cursor:pointer; text-transform:uppercase; transition:border-color 0.2s, background 0.2s;
+}
+.admin-mobile-nav-trigger:hover { background:rgba(255,255,255,0.08); border-color:rgba(123,47,190,0.4); }
+.admin-mobile-nav-trigger .arrow { transition:transform 0.35s ease; }
+.admin-mobile-nav-trigger.open .arrow { transform:rotate(180deg); }
+.admin-mobile-nav-options {
+  position:absolute; top:100%; left:0; right:0; z-index:100;
+  background:var(--dark3); border:1px solid rgba(123,47,190,0.2); border-radius:10px;
+  overflow:hidden; max-height:0; opacity:0; transition:max-height 0.4s ease, opacity 0.35s ease, margin 0.3s ease;
+  margin-top:0; pointer-events:none;
+}
+.admin-mobile-nav-options.open { max-height:420px; opacity:1; margin-top:6px; pointer-events:auto; }
+.admin-mobile-nav-option {
+  display:flex; align-items:center; gap:10px; width:100%; padding:12px 14px;
+  border:none; background:rgba(255,255,255,0.03); border-bottom:1px solid rgba(255,255,255,0.06);
+  color:rgba(255,255,255,0.5); font-family:'Rajdhani',sans-serif; font-weight:600; font-size:13px; letter-spacing:1px;
+  cursor:pointer; text-transform:uppercase; transition:all 0.25s ease; text-align:left;
+}
+.admin-mobile-nav-option:last-child { border-bottom:none; }
+.admin-mobile-nav-option:hover { background:rgba(123,47,190,0.1); color:#fff; }
+.admin-mobile-nav-option.active { background:rgba(123,47,190,0.18); color:#fff; }
+.admin-mobile-nav-option svg { flex-shrink:0; }
+
+/* --- ADMIN SIDEBAR --- */
+.admin-container { display:flex; gap:28px; max-width:1300px; margin:0 auto; height:calc(100vh - 250px); overflow:hidden; }
+.admin-sidebar { flex:0 0 200px; display:flex; flex-direction:column; gap:4px; }
+.admin-sidebar-btn {
+  display:flex; align-items:center; gap:10px; width:100%; padding:12px 14px;
+  background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:8px;
+  font-family:'Rajdhani',sans-serif; font-weight:600; font-size:13px; letter-spacing:1px;
+  color:rgba(255,255,255,0.5); cursor:pointer; text-transform:uppercase;
+  transition:all 0.25s ease; text-align:left;
+}
+.admin-sidebar-btn:hover { background:rgba(123,47,190,0.1); border-color:rgba(123,47,190,0.25); color:#fff; }
+.admin-sidebar-btn.active { background:rgba(123,47,190,0.18); border-color:rgba(123,47,190,0.35); color:#fff; box-shadow:inset 3px 0 0 var(--purple); }
+.admin-sidebar-btn svg { flex-shrink:0; }
+
+.admin-content { flex:1; min-width:0; overflow-y:auto; }
+.admin-section { display:none; animation:fadeSlideIn 0.35s ease both; }
+.admin-section.active { display:block; }
+@keyframes fadeSlideIn { from{opacity:0;transform:translateY(12px);} to{opacity:1;transform:translateY(0);} }
+
+.admin-row-3 { display:flex; flex-direction:column; gap:20px; }
+.admin-card-scroll { display:flex; flex-direction:column; }
+.admin-card-scroll h3 { flex-shrink:0; }
+.scroll-inner { overflow-y:auto; -webkit-overflow-scrolling:touch; max-height:300px; }
+.scroll-inner::-webkit-scrollbar { width:4px; }
+.scroll-inner::-webkit-scrollbar-track { background:transparent; }
+.scroll-inner::-webkit-scrollbar-thumb { background:rgba(123,47,190,0.3); border-radius:4px; }
+.matches-scroll { overflow-y:auto; }
+.matches-scroll::-webkit-scrollbar { width:4px; }
+.matches-scroll::-webkit-scrollbar-track { background:transparent; }
+.matches-scroll::-webkit-scrollbar-thumb { background:rgba(123,47,190,0.3); border-radius:4px; }
+
+@media(max-width:768px){
+  .admin-container{flex-direction:column;gap:12px;}
+  .admin-sidebar{display:none;}
+  .admin-mobile-nav{display:block;}
+  .admin-grid{grid-template-columns:1fr;}
+  .admin-filter-grid{grid-template-columns:1fr 1fr;}
+  .admin-table th, .admin-table td { padding:6px 6px; font-size:12px; }
+  .admin-table td .admin-btn { font-size:10px; padding:4px 10px; }
+  .admin-card{ padding:16px; }
+  .scroll-inner{max-height:220px;}
+}
+@media(max-width:480px){
+  .admin-table th, .admin-table td { padding:4px 4px; font-size:11px; }
+  .admin-filter-grid{grid-template-columns:1fr;}
+  .admin-card h3{font-size:16px;flex-wrap:wrap;}
+  .admin-card h3 button{margin-left:0 !important;width:100%;}
+  .scroll-inner{max-height:200px;}
+}
 
 /* ─── ADMIN RESPONSIVE ─── */
 @media (max-width: 480px) {
@@ -93,175 +167,240 @@
   <a href="login.html" class="nav-auth-link" data-page="login" style="color:#ef4444;">CERRAR SESIÓN</a>
 </nav>
 
-<section class="page-section">
-  <div style="max-width:1200px; margin:0 auto;">
+<section class="page-section" style="min-height:auto;">
+  <div style="max-width:1300px; margin:0 auto;">
     <div class="section-header">
       <div class="section-label">PANEL DE CONTROL</div>
       <h2 class="section-title">ADMINISTRACIÓN</h2>
     </div>
 
-    <div class="admin-grid">
-      <!-- Mi Perfil -->
-      <div class="admin-card">
-        <h3>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FFD700" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+    <div class="admin-mobile-nav" id="adminMobileNav">
+      <button class="admin-mobile-nav-trigger" onclick="toggleAdminMobileNav()">
+        <span id="adminMobileNavLabel">MI PERFIL</span>
+        <svg class="arrow" width="14" height="9" viewBox="0 0 14 9"><path d="M1 1l6 6 6-6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <div class="admin-mobile-nav-options" id="adminMobileNavOptions">
+        <button class="admin-mobile-nav-option active" data-section="perfil" onclick="switchSectionMobile('perfil')">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
           MI PERFIL
-        </h3>
-        <p id="profileStatus" style="font-size:14px;color:rgba(255,255,255,0.4);margin-bottom:12px;">Cargando...</p>
-        <form id="profileForm" class="admin-form">
-          <label>Tu Brawlhalla ID</label>
-          <div style="display:flex;gap:8px;">
-            <input type="number" id="profileBrawlhallaId" placeholder="Ingresa tu ID de Brawlhalla" style="flex:1;">
-            <button type="submit" class="btn-action admin-btn">GUARDAR</button>
-          </div>
-        </form>
-      </div>
-
-      <!-- Pending Players -->
-      <div class="admin-card">
-        <h3>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FFD700" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
-          SOLICITUDES PENDIENTES
-        </h3>
-        <div id="pendingPlayers">Cargando...</div>
-      </div>
-
-      <!-- Start Season -->
-      <div class="admin-card">
-        <h3>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FFD700" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-          TEMPORADA
-        </h3>
-        <div id="seasonStatus">Cargando...</div>
-        <div style="margin-top:12px;">
-          <form id="startSeasonForm" style="display:flex;gap:8px;">
-            <input type="text" id="seasonName" placeholder="Nombre de temporada" style="flex:1;padding:10px 14px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:#fff;font-family:'Rajdhani',sans-serif;">
-            <button type="submit" class="btn-action admin-btn">INICIAR</button>
-          </form>
-        </div>
-      </div>
-
-      <!-- Partidas -->
-      <div class="admin-card">
-        <h3>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FFD700" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        </button>
+        <button class="admin-mobile-nav-option" data-section="jugadores" onclick="switchSectionMobile('jugadores')">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          JUGADORES
+        </button>
+        <button class="admin-mobile-nav-option" data-section="partidas" onclick="switchSectionMobile('partidas')">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
           PARTIDAS
-        </h3>
-        <div style="display:flex;gap:8px;margin-bottom:12px;">
-          <button id="tabPending" class="admin-btn btn-action" onclick="switchTab('pending')" style="flex:1;">PENDIENTES</button>
-          <button id="tabCompleted" class="admin-btn" onclick="switchTab('completed')" style="flex:1;background:rgba(255,255,255,0.05);color:rgba(255,255,255,0.4);border:1px solid rgba(255,255,255,0.1);">COMPLETADAS</button>
-        </div>
-        <div class="admin-filter-grid">
-          <input id="adminMatchNameFilter" type="search" placeholder="Buscar jugador o rival..." oninput="refreshActiveTab()">
-          <input id="adminMatchDateFilter" type="date" onchange="refreshActiveTab()">
-          <input id="adminMatchRoundFilter" type="number" min="1" placeholder="Jornada" oninput="refreshActiveTab()">
-          <button type="button" class="admin-btn" onclick="clearAdminMatchFilters()" style="background:rgba(255,255,255,0.05);color:rgba(255,255,255,0.65);border:1px solid rgba(255,255,255,0.1);">LIMPIAR</button>
-        </div>
-        <div id="matchesContainer">Cargando...</div>
+        </button>
+        <button class="admin-mobile-nav-option" data-section="temporada" onclick="switchSectionMobile('temporada')">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          TEMPORADA
+        </button>
+        <button class="admin-mobile-nav-option" data-section="torneos" onclick="switchSectionMobile('torneos')">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          TORNEOS
+        </button>
+        <button class="admin-mobile-nav-option" data-section="admins" onclick="switchSectionMobile('admins')">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+          ADMINS
+        </button>
+      </div>
+    </div>
+
+    <div class="admin-container">
+      <div class="admin-sidebar" id="adminSidebar">
+        <button class="admin-sidebar-btn active" data-section="perfil" onclick="switchSection('perfil')">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          Perfil
+        </button>
+        <button class="admin-sidebar-btn" data-section="jugadores" onclick="switchSection('jugadores')">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          Jugadores
+        </button>
+        <button class="admin-sidebar-btn" data-section="partidas" onclick="switchSection('partidas')">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          Partidas
+        </button>
+        <button class="admin-sidebar-btn" data-section="temporada" onclick="switchSection('temporada')">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          Temporada
+        </button>
+        <button class="admin-sidebar-btn" data-section="torneos" onclick="switchSection('torneos')">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          Torneos
+        </button>
+        <button class="admin-sidebar-btn" data-section="admins" onclick="switchSection('admins')">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+          Admins
+        </button>
       </div>
 
-      <!-- Create Admin User -->
-      <div class="admin-card">
-        <h3>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FFD700" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
-          CREAR ADMIN
-        </h3>
-        <form id="createAdminForm" class="admin-form">
-          <label>Usuario</label>
-          <input type="text" id="newAdminUsername" placeholder="Nombre de usuario" required>
-          <label>Contraseña</label>
-          <input type="password" id="newAdminPassword" placeholder="Contraseña" required>
-          <button type="submit" class="btn-action admin-btn">CREAR ADMIN</button>
-        </form>
-      </div>
+      <div class="admin-content">
 
-      <!-- Approved Players / Expel -->
-      <div class="admin-card">
-        <h3>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="17" y1="15" x2="22" y2="20"/><line x1="22" y1="15" x2="17" y2="20"/></svg>
-          JUGADORES ACTIVOS
-          <button class="admin-btn" style="margin-left:auto;font-size:11px;padding:6px 14px;" onclick="reverifyTiers()">RE-VERIFICAR TIERS</button>
-        </h3>
-        <div id="activePlayers">Cargando...</div>
-      </div>
-
-      <!-- User Management / Password Reset -->
-      <div class="admin-card">
-        <h3>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FFD700" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-          GESTIÓN DE USUARIOS
-        </h3>
-        <div id="usersList">Cargando...</div>
-      </div>
-
-      <!-- Torneos -->
-      <div class="admin-card">
-        <h3>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FFD700" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-          GESTIÓN DE TORNEOS
-        </h3>
-        
-        <!-- Crear Torneo Form -->
-        <form id="createTournamentForm" class="admin-form" style="margin-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 20px;">
-          <label>Nombre del Torneo</label>
-          <input type="text" id="tournamentName" placeholder="Ej: Torneo de Apertura" required>
-          <label>Formato</label>
-          <select id="tournamentFormat" required>
-            <option value="custom_3groups">5 Grupos de 3 (Clasificación a Liga)</option>
-            <option value="single_elimination">Eliminación Directa (Brackets)</option>
-          </select>
-          <button type="submit" class="btn-action admin-btn" style="margin-top: 8px;">CREAR TORNEO</button>
-        </form>
-
-        <!-- Seleccionar Torneo -->
-        <div style="margin-bottom: 16px;">
-          <label>Seleccionar Torneo a Administrar</label>
-          <select id="adminTournamentSelect" class="admin-select" onchange="onTournamentSelectChange()">
-            <option value="">Selecciona un torneo...</option>
-          </select>
-        </div>
-
-        <!-- Dynamic Management Area -->
-        <div id="tournamentMgmtArea" style="display: none;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; background: rgba(255,255,255,0.03); padding: 10px; border-radius: 6px;">
-            <span id="mgmtTournamentStatus" style="font-family:'Orbitron', sans-serif; font-size: 12px; letter-spacing:1.5px; font-weight:700;">STATUS: ACTIVE</span>
-            <span id="mgmtTournamentFormat" style="font-size:12px; color:rgba(255,255,255,0.5);">Formato: 3 Grupos</span>
+        <!-- SECTION: Perfil -->
+        <div class="admin-section active" id="section-perfil">
+          <div class="admin-grid">
+            <div class="admin-card">
+              <h3>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FFD700" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                MI PERFIL
+              </h3>
+              <p id="profileStatus" style="font-size:14px;color:rgba(255,255,255,0.4);margin-bottom:12px;">Cargando...</p>
+              <form id="profileForm" class="admin-form">
+                <label>Tu Brawlhalla ID</label>
+                <div style="display:flex;gap:8px;">
+                  <input type="number" id="profileBrawlhallaId" placeholder="Ingresa tu ID de Brawlhalla" style="flex:1;">
+                  <button type="submit" class="btn-action admin-btn">GUARDAR</button>
+                </div>
+              </form>
+            </div>
           </div>
+        </div>
 
-          <!-- If Not Started -->
-          <div id="mgmtNotStartedSection" style="display: none;">
-            <div style="margin-bottom: 16px;">
-              <h4 style="font-size: 14px; font-family:'Orbitron',sans-serif; letter-spacing:1px; margin-bottom: 8px; color: var(--gold);">SOLICITUDES PENDIENTES</h4>
-              <div id="mgmtPendingPlayers"></div>
+        <!-- SECTION: Jugadores -->
+        <div class="admin-section" id="section-jugadores">
+          <div class="admin-card" style="display:flex;flex-direction:column;min-height:0;">
+            <h3>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FFD700" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              JUGADORES
+            </h3>
+            <div style="display:flex;gap:8px;margin-bottom:12px;">
+              <button id="jTabPendientes" class="admin-btn btn-action" onclick="switchJugadoresTab('pendientes')" style="flex:1;">SOLICITUDES</button>
+              <button id="jTabActivos" class="admin-btn" onclick="switchJugadoresTab('activos')" style="flex:1;background:rgba(255,255,255,0.05);color:rgba(255,255,255,0.4);border:1px solid rgba(255,255,255,0.1);">ACTIVOS</button>
+              <button id="jTabUsuarios" class="admin-btn" onclick="switchJugadoresTab('usuarios')" style="flex:1;background:rgba(255,255,255,0.05);color:rgba(255,255,255,0.4);border:1px solid rgba(255,255,255,0.1);">USUARIOS</button>
             </div>
-            
-            <div style="margin-bottom: 16px;">
-              <h4 style="font-size: 14px; font-family:'Orbitron',sans-serif; letter-spacing:1px; margin-bottom: 8px; color: #22c55e;">JUGADORES APROBADOS (<span id="mgmtApprovedCount">0</span>)</h4>
-              <div id="mgmtApprovedPlayers" style="font-size: 13px; color: rgba(255,255,255,0.6); line-height: 1.6;">Ninguno.</div>
-            </div>
-
-            <button class="btn-action admin-btn" style="width: 100%;" onclick="startTournament()">INICIAR TORNEO</button>
-          </div>
-
-          <!-- If Started -->
-          <div id="mgmtStartedSection" style="display: none;">
-            <!-- Group/Phases Actions -->
-            <div id="mgmtPhaseActions" style="display: flex; gap: 8px; margin-bottom: 16px;">
-              <button class="admin-btn btn-action" style="flex:1;" onclick="generateRepechaje()">GENERAR REPECHAJE</button>
-              <button class="admin-btn btn-action" style="flex:1;" onclick="generatePlayoffs()">TRASPASAR GANADORES</button>
-            </div>
-
-            <!-- Matches Section -->
-            <div style="margin-top: 16px;">
-              <h4 style="font-size: 14px; font-family:'Orbitron',sans-serif; letter-spacing:1px; margin-bottom: 12px; color: #fff;">PARTIDAS DEL TORNEO</h4>
-              <div style="display:flex;gap:8px;margin-bottom:12px;">
-                <button id="tabTournamentPending" class="admin-btn btn-action" onclick="switchTournamentMatchTab('pending')" style="flex:1;">PENDIENTES</button>
-                <button id="tabTournamentCompleted" class="admin-btn" onclick="switchTournamentMatchTab('completed')" style="flex:1;background:rgba(255,255,255,0.05);color:rgba(255,255,255,0.4);border:1px solid rgba(255,255,255,0.1);">COMPLETADAS</button>
+            <div style="flex:1;min-height:0;overflow-y:auto;">
+              <div id="jTabContentPendientes"><div class="scroll-inner" id="pendingPlayers">Cargando...</div></div>
+              <div id="jTabContentActivos" style="display:none;">
+                <div style="text-align:right;margin-bottom:8px;"><button class="admin-btn" style="font-size:11px;padding:6px 14px;" onclick="reverifyTiers()">RE-VERIFICAR TIERS</button></div>
+                <div class="scroll-inner" id="activePlayers">Cargando...</div>
               </div>
-              <div id="tournamentMatchesContainer"></div>
+              <div id="jTabContentUsuarios" style="display:none;"><div class="scroll-inner" id="usersList">Cargando...</div></div>
             </div>
           </div>
         </div>
+
+        <!-- SECTION: Partidas -->
+        <div class="admin-section" id="section-partidas">
+          <div class="admin-card">
+            <h3>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FFD700" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+              PARTIDAS
+            </h3>
+            <div style="display:flex;gap:8px;margin-bottom:12px;">
+              <button id="tabPending" class="admin-btn btn-action" onclick="switchTab('pending')" style="flex:1;">PENDIENTES</button>
+              <button id="tabCompleted" class="admin-btn" onclick="switchTab('completed')" style="flex:1;background:rgba(255,255,255,0.05);color:rgba(255,255,255,0.4);border:1px solid rgba(255,255,255,0.1);">COMPLETADAS</button>
+            </div>
+            <div class="admin-filter-grid">
+              <input id="adminMatchNameFilter" type="search" placeholder="Buscar jugador o rival..." oninput="refreshActiveTab()">
+              <input id="adminMatchDateFilter" type="date" onchange="refreshActiveTab()">
+              <input id="adminMatchRoundFilter" type="number" min="1" placeholder="Jornada" oninput="refreshActiveTab()">
+              <button type="button" class="admin-btn" onclick="clearAdminMatchFilters()" style="background:rgba(255,255,255,0.05);color:rgba(255,255,255,0.65);border:1px solid rgba(255,255,255,0.1);">LIMPIAR</button>
+            </div>
+            <div class="matches-scroll"><div id="matchesContainer">Cargando...</div></div>
+          </div>
+        </div>
+
+        <!-- SECTION: Temporada -->
+        <div class="admin-section" id="section-temporada">
+          <div class="admin-grid">
+            <div class="admin-card">
+              <h3>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FFD700" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                TEMPORADA
+              </h3>
+              <div id="seasonStatus">Cargando...</div>
+              <div style="margin-top:12px;">
+                <form id="startSeasonForm" style="display:flex;gap:8px;">
+                  <input type="text" id="seasonName" placeholder="Nombre de temporada" style="flex:1;padding:10px 14px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:#fff;font-family:'Rajdhani',sans-serif;">
+                  <button type="submit" class="btn-action admin-btn">INICIAR</button>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SECTION: Torneos -->
+        <div class="admin-section" id="section-torneos">
+          <div class="admin-card">
+            <h3>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FFD700" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+              GESTIÓN DE TORNEOS
+            </h3>
+            
+            <form id="createTournamentForm" class="admin-form" style="margin-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 20px;">
+              <label>Nombre del Torneo</label>
+              <input type="text" id="tournamentName" placeholder="Ej: Torneo de Apertura" required>
+              <label>Formato</label>
+              <select id="tournamentFormat" required>
+                <option value="custom_3groups">5 Grupos de 3 (Clasificación a Liga)</option>
+                <option value="single_elimination">Eliminación Directa (Brackets)</option>
+              </select>
+              <button type="submit" class="btn-action admin-btn" style="margin-top: 8px;">CREAR TORNEO</button>
+            </form>
+
+            <div style="margin-bottom: 16px;">
+              <label>Seleccionar Torneo a Administrar</label>
+              <select id="adminTournamentSelect" class="admin-select" onchange="onTournamentSelectChange()">
+                <option value="">Selecciona un torneo...</option>
+              </select>
+            </div>
+
+            <div id="tournamentMgmtArea" style="display: none;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; background: rgba(255,255,255,0.03); padding: 10px; border-radius: 6px;">
+                <span id="mgmtTournamentStatus" style="font-family:'Orbitron', sans-serif; font-size: 12px; letter-spacing:1.5px; font-weight:700;">STATUS: ACTIVE</span>
+                <span id="mgmtTournamentFormat" style="font-size:12px; color:rgba(255,255,255,0.5);">Formato: 3 Grupos</span>
+              </div>
+
+              <div id="mgmtNotStartedSection" style="display: none;">
+                <div style="margin-bottom: 16px;">
+                  <h4 style="font-size: 14px; font-family:'Orbitron',sans-serif; letter-spacing:1px; margin-bottom: 8px; color: var(--gold);">SOLICITUDES PENDIENTES</h4>
+                  <div id="mgmtPendingPlayers"></div>
+                </div>
+                <div style="margin-bottom: 16px;">
+                  <h4 style="font-size: 14px; font-family:'Orbitron',sans-serif; letter-spacing:1px; margin-bottom: 8px; color: #22c55e;">JUGADORES APROBADOS (<span id="mgmtApprovedCount">0</span>)</h4>
+                  <div id="mgmtApprovedPlayers" style="font-size: 13px; color: rgba(255,255,255,0.6); line-height: 1.6;">Ninguno.</div>
+                </div>
+                <button class="btn-action admin-btn" style="width: 100%;" onclick="startTournament()">INICIAR TORNEO</button>
+              </div>
+
+              <div id="mgmtStartedSection" style="display: none;">
+                <div id="mgmtPhaseActions" style="display: flex; gap: 8px; margin-bottom: 16px;">
+                  <button class="admin-btn btn-action" style="flex:1;" onclick="generateRepechaje()">GENERAR REPECHAJE</button>
+                  <button class="admin-btn btn-action" style="flex:1;" onclick="generatePlayoffs()">TRASPASAR GANADORES</button>
+                </div>
+                <div style="margin-top: 16px;">
+                  <h4 style="font-size: 14px; font-family:'Orbitron',sans-serif; letter-spacing:1px; margin-bottom: 12px; color: #fff;">PARTIDAS DEL TORNEO</h4>
+                  <div style="display:flex;gap:8px;margin-bottom:12px;">
+                    <button id="tabTournamentPending" class="admin-btn btn-action" onclick="switchTournamentMatchTab('pending')" style="flex:1;">PENDIENTES</button>
+                    <button id="tabTournamentCompleted" class="admin-btn" onclick="switchTournamentMatchTab('completed')" style="flex:1;background:rgba(255,255,255,0.05);color:rgba(255,255,255,0.4);border:1px solid rgba(255,255,255,0.1);">COMPLETADAS</button>
+                  </div>
+                  <div id="tournamentMatchesContainer"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SECTION: Admins -->
+        <div class="admin-section" id="section-admins">
+          <div class="admin-grid">
+            <div class="admin-card">
+              <h3>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FFD700" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+                CREAR ADMIN
+              </h3>
+              <form id="createAdminForm" class="admin-form">
+                <label>Usuario</label>
+                <input type="text" id="newAdminUsername" placeholder="Nombre de usuario" required>
+                <label>Contraseña</label>
+                <input type="password" id="newAdminPassword" placeholder="Contraseña" required>
+                <button type="submit" class="btn-action admin-btn">CREAR ADMIN</button>
+              </form>
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
   </div>
@@ -392,6 +531,65 @@
 // ─── AUTH GUARD ───
 if (!isLoggedIn() || getRole() !== 'admin') {
   window.location.href = 'login.html';
+}
+
+// ─── SIDEBAR SECTION SWITCHING ───
+function switchSection(sectionId) {
+  document.querySelectorAll('.admin-sidebar-btn').forEach(function(btn) {
+    btn.classList.toggle('active', btn.dataset.section === sectionId);
+  });
+  document.querySelectorAll('.admin-mobile-nav-option').forEach(function(opt) {
+    opt.classList.toggle('active', opt.dataset.section === sectionId);
+  });
+  var label = document.getElementById('adminMobileNavLabel');
+  var activeOpt = document.querySelector('.admin-mobile-nav-option.active');
+  if (label && activeOpt) label.textContent = activeOpt.textContent.trim();
+  document.querySelectorAll('.admin-section').forEach(function(el) {
+    el.classList.toggle('active', el.id === 'section-' + sectionId);
+  });
+  if (sectionId === 'jugadores') { loadPending(); loadActivePlayers(); loadUsers(); }
+  else if (sectionId === 'partidas') { refreshActiveTab(); }
+  else if (sectionId === 'temporada') { loadSeasonStatus(); }
+  else if (sectionId === 'torneos') { loadAdminTournaments(); }
+  closeAdminMobileNav();
+}
+
+function toggleAdminMobileNav() {
+  var opts = document.getElementById('adminMobileNavOptions');
+  var trig = document.querySelector('.admin-mobile-nav-trigger');
+  opts.classList.toggle('open');
+  trig.classList.toggle('open');
+}
+function closeAdminMobileNav() {
+  var opts = document.getElementById('adminMobileNavOptions');
+  var trig = document.querySelector('.admin-mobile-nav-trigger');
+  opts.classList.remove('open');
+  trig.classList.remove('open');
+}
+function switchSectionMobile(sectionId) {
+  switchSection(sectionId);
+  closeAdminMobileNav();
+}
+
+var currentJugadoresTab = 'pendientes';
+function switchJugadoresTab(tab) {
+  currentJugadoresTab = tab;
+  var tabs = ['pendientes','activos','usuarios'];
+  var ids = {pendientes:'jTabPendientes',activos:'jTabActivos',usuarios:'jTabUsuarios'};
+  var contents = {pendientes:'jTabContentPendientes',activos:'jTabContentActivos',usuarios:'jTabContentUsuarios'};
+  tabs.forEach(function(t) {
+    var btn = document.getElementById(ids[t]);
+    var content = document.getElementById(contents[t]);
+    if (t === tab) {
+      btn.className = 'admin-btn btn-action';
+      btn.style.cssText = 'flex:1;';
+      content.style.display = 'block';
+    } else {
+      btn.className = 'admin-btn';
+      btn.style.cssText = 'flex:1;background:rgba(255,255,255,0.05);color:rgba(255,255,255,0.4);border:1px solid rgba(255,255,255,0.1);';
+      content.style.display = 'none';
+    }
+  });
 }
 
 // ─── MI PERFIL ───
@@ -1331,16 +1529,12 @@ async function generatePlayoffs() {
 }
 
 // ─── INIT ───
-loadPending();
-loadSeasonStatus();
 loadProfile();
-loadPendingMatches();
-loadActivePlayers();
-loadUsers();
 loadAdminTournaments();
-setInterval(loadPending, 300000); // 5 minutes
-setInterval(() => { if (currentMatchTab === 'pending') loadPendingMatches(); else loadCompletedMatches(); }, 300000); // 5 minutes
+setInterval(loadPending, 300000);
+setInterval(() => { if (currentMatchTab === 'pending') loadPendingMatches(); else loadCompletedMatches(); }, 300000);
 updateNav();
 </script>
 </body>
 </html>
+
