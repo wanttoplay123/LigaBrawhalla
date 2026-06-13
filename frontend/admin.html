@@ -427,6 +427,12 @@
       <label style="margin-top:8px;">Partidas (selecciona ganador de cada game)</label>
       <div id="gamesContainer" style="display:flex;flex-direction:column;gap:6px;"></div>
       <div id="scoreSummary" style="text-align:center;padding:10px;margin-top:8px;border-radius:6px;font-size:16px;font-weight:600;letter-spacing:2px;font-family:'Bebas Neue',sans-serif;"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px;">
+        <div><label>Daño J1</label><input type="number" id="reportP1Damage" value="0" min="0" style="width:100%;"></div>
+        <div><label>Daño J2</label><input type="number" id="reportP2Damage" value="0" min="0" style="width:100%;"></div>
+        <div><label>KOs J1</label><input type="number" id="reportP1Kos" value="0" min="0" style="width:100%;"></div>
+        <div><label>KOs J2</label><input type="number" id="reportP2Kos" value="0" min="0" style="width:100%;"></div>
+      </div>
       <div style="display:flex;gap:8px;margin-top:12px;">
         <button type="submit" class="btn-action admin-btn" style="flex:1;" id="reportSubmitBtn" disabled>GUARDAR</button>
         <button type="button" class="admin-btn btn-danger" onclick="closeReportModal()" style="flex:1;">CANCELAR</button>
@@ -786,7 +792,7 @@ async function loadCompletedMatches() {
     div.innerHTML = '<p style="color:rgba(255,255,255,0.4);font-size:14px;">No hay partidas completadas con esos filtros</p>';
     return;
   }
-  let html = '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;"><table class="admin-table"><tr><th>#</th><th>Jornada</th><th>J1</th><th>Score</th><th>J2</th><th>Editar</th></tr>';
+  let html = '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;"><table class="admin-table"><tr><th>#</th><th>Jornada</th><th>J1</th><th>Score</th><th>J2</th><th>Daño J1</th><th>Daño J2</th><th>KOs J1</th><th>KOs J2</th><th>Editar</th></tr>';
   filtered.forEach((m) => {
     const codeLabel = m.match_code ? ` · COD ${m.match_code}` : '';
     html += `<tr class="clickable-match-row" onclick="openMatchCodeModal(${m.id},'${(m.player1_name || m.player1_username).replace(/'/g,"\\'")}','${(m.player2_name || m.player2_username).replace(/'/g,"\\'")}','${(m.match_code || '').replace(/'/g,"\\'")}')">
@@ -795,6 +801,10 @@ async function loadCompletedMatches() {
       <td>${m.player1_name || m.player1_username}</td>
       <td style="text-align:center;font-weight:600;color:#a855f7;">${m.score || '—'}</td>
       <td>${m.player2_name || m.player2_username}</td>
+      <td>${m.p1_damage ?? '—'}</td>
+      <td>${m.p2_damage ?? '—'}</td>
+      <td>${m.p1_kos ?? '—'}</td>
+      <td>${m.p2_kos ?? '—'}</td>
       <td style="display:flex;gap:4px;">
         <button class="admin-btn btn-action" onclick="event.stopPropagation();openEditModal(${m.id})">EDITAR</button>
         <button class="admin-btn btn-danger" onclick="event.stopPropagation();revertMatch(${m.id})">↺</button>
@@ -920,6 +930,10 @@ function openReportModal(matchId, p1Id, p2Id, p1Name, p2Name) {
   document.getElementById('reportModalMatchInfo').textContent = `Partida #${matchId}: ${p1Name} vs ${p2Name}`;
   document.getElementById('reportModalLegend1').value = '';
   document.getElementById('reportModalLegend2').value = '';
+  document.getElementById('reportP1Damage').value = 0;
+  document.getElementById('reportP2Damage').value = 0;
+  document.getElementById('reportP1Kos').value = 0;
+  document.getElementById('reportP2Kos').value = 0;
   document.getElementById('scoreSummary').textContent = '';
   document.getElementById('reportSubmitBtn').disabled = true;
   document.getElementById('reportSubmitBtn').textContent = 'GUARDAR';
@@ -944,6 +958,10 @@ async function openEditModal(matchId) {
   document.getElementById('reportModalMatchInfo').textContent = `✎ Editando Partida #${matchId}: ${reportP1Name} vs ${reportP2Name}`;
   document.getElementById('reportModalLegend1').value = m.legend1 || '';
   document.getElementById('reportModalLegend2').value = m.legend2 || '';
+  document.getElementById('reportP1Damage').value = m.p1_damage || 0;
+  document.getElementById('reportP2Damage').value = m.p2_damage || 0;
+  document.getElementById('reportP1Kos').value = m.p1_kos || 0;
+  document.getElementById('reportP2Kos').value = m.p2_kos || 0;
   document.getElementById('reportSubmitBtn').textContent = 'ACTUALIZAR';
 
   const [p1g, p2g] = (m.score || '0-0').split('-').map(Number);
@@ -1027,6 +1045,10 @@ document.getElementById('reportModalForm').addEventListener('submit', async (e) 
   const format = summary.dataset.format || 'bo3';
   const legend1 = document.getElementById('reportModalLegend1').value.trim();
   const legend2 = document.getElementById('reportModalLegend2').value.trim();
+  const p1_damage = parseInt(document.getElementById('reportP1Damage').value) || 0;
+  const p2_damage = parseInt(document.getElementById('reportP2Damage').value) || 0;
+  const p1_kos = parseInt(document.getElementById('reportP1Kos').value) || 0;
+  const p2_kos = parseInt(document.getElementById('reportP2Kos').value) || 0;
 
   if (!winnerId) { showNotification('Completa los resultados de los games', 'error'); return; }
 
@@ -1037,7 +1059,7 @@ document.getElementById('reportModalForm').addEventListener('submit', async (e) 
 
   const { ok, data } = await apiFetch(endpoint, {
     method,
-    body: JSON.stringify({ winner_id: winnerId, legend1, legend2, score, format })
+    body: JSON.stringify({ winner_id: winnerId, legend1, legend2, score, format, p1_damage, p2_damage, p1_kos, p2_kos })
   });
 
   if (ok) {

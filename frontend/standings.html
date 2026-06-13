@@ -123,6 +123,8 @@ function renderStandings() {
       <span class="col-w">G</span>
       <span class="col-l">P</span>
       <span class="col-dif">DIF</span>
+      <span class="col-kos">KOs</span>
+      <span class="col-dmg">DAÑO</span>
       <span class="col-pts">PTS</span>
       <span class="col-wr">%</span>
     </div>`;
@@ -143,6 +145,8 @@ function renderStandings() {
       <span class="col-w">${p.wins || 0}</span>
       <span class="col-l">${p.losses || 0}</span>
       <span class="col-dif" style="${difClass}font-weight:600;">${dif > 0 ? '+' : ''}${dif}</span>
+      <span class="col-kos">${p.total_kos || 0}</span>
+      <span class="col-dmg">${p.total_damage || 0}</span>
       <span class="col-pts"><strong>${p.points || 0}</strong></span>
       <span class="col-wr">${p.winrate || 0}%</span>
     </a>`;

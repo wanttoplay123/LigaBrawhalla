@@ -664,6 +664,7 @@ app.get('/api/matches', async (req, res) => {
 
     let query = `
       SELECT m.id, m.player1_id, m.player2_id, m.winner_id, m.legend1, m.legend2, m.score, m.status, m.scheduled_date, m.played_date, m.rescheduled, m.match_code,
+             m.p1_damage, m.p2_damage, m.p1_kos, m.p2_kos,
              r.round_number, r.id AS round_id,
              p1.brawlhalla_name AS player1_name, p1.tier AS player1_tier,
              p2.brawlhalla_name AS player2_name, p2.tier AS player2_tier,
@@ -755,7 +756,7 @@ app.get('/api/rounds', async (req, res) => {
 
 app.patch('/api/matches/:id/result', authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const { winner_id, legend1, legend2, score, format } = req.body;
+    const { winner_id, legend1, legend2, score, format, p1_damage, p2_damage, p1_kos, p2_kos } = req.body;
     if (!winner_id) return res.status(400).json({ error: 'winner_id required' });
 
     const matchResult = await pool.query('SELECT round_id, player1_id, player2_id FROM matches WHERE id = $1', [req.params.id]);
@@ -783,9 +784,11 @@ app.patch('/api/matches/:id/result', authMiddleware, adminMiddleware, async (req
     const playedDateStr = `${nd.getFullYear()}-${pad(nd.getMonth()+1)}-${pad(nd.getDate())} ${pad(nd.getHours())}:${pad(nd.getMinutes())}`;
 
     await pool.query(
-      `UPDATE matches SET winner_id = $1, legend1 = $2, legend2 = $3, score = $4, status = 'completed', played_date = $5
-       WHERE id = $6`,
-      [winner_id, legend1 || null, legend2 || null, score || null, playedDateStr, req.params.id]
+      `UPDATE matches SET winner_id = $1, legend1 = $2, legend2 = $3, score = $4, status = 'completed', played_date = $5,
+       p1_damage = $6, p2_damage = $7, p1_kos = $8, p2_kos = $9
+       WHERE id = $10`,
+      [winner_id, legend1 || null, legend2 || null, score || null, playedDateStr,
+       p1_damage || 0, p2_damage || 0, p1_kos || 0, p2_kos || 0, req.params.id]
     );
 
     const roundResult = await pool.query(
@@ -845,6 +848,7 @@ app.get('/api/admin/matches/completed', authMiddleware, adminMiddleware, async (
     const result = await pool.query(`
       SELECT m.id, m.round_id, r.round_number, m.player1_id, m.player2_id, m.winner_id,
              m.legend1, m.legend2, m.score, m.status, m.played_date, m.scheduled_date, m.rescheduled, m.match_code,
+             m.p1_damage, m.p2_damage, m.p1_kos, m.p2_kos,
              p1.brawlhalla_name AS player1_name, p2.brawlhalla_name AS player2_name,
              u1.username AS player1_username, u2.username AS player2_username
       FROM matches m
@@ -866,7 +870,7 @@ app.get('/api/admin/matches/completed', authMiddleware, adminMiddleware, async (
 
 app.put('/api/admin/matches/:id/result', authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const { winner_id, legend1, legend2, score, format } = req.body;
+    const { winner_id, legend1, legend2, score, format, p1_damage, p2_damage, p1_kos, p2_kos } = req.body;
     if (!winner_id) return res.status(400).json({ error: 'winner_id required' });
 
     const matchResult = await pool.query('SELECT round_id, player1_id, player2_id, status FROM matches WHERE id = $1', [req.params.id]);
@@ -890,9 +894,11 @@ app.put('/api/admin/matches/:id/result', authMiddleware, adminMiddleware, async 
     }
 
     await pool.query(
-      `UPDATE matches SET winner_id = $1, legend1 = $2, legend2 = $3, score = $4, status = 'completed'
-       WHERE id = $5`,
-      [winner_id, legend1 || null, legend2 || null, score || null, req.params.id]
+      `UPDATE matches SET winner_id = $1, legend1 = $2, legend2 = $3, score = $4, status = 'completed',
+       p1_damage = $5, p2_damage = $6, p1_kos = $7, p2_kos = $8
+       WHERE id = $9`,
+      [winner_id, legend1 || null, legend2 || null, score || null,
+       p1_damage || 0, p2_damage || 0, p1_kos || 0, p2_kos || 0, req.params.id]
     );
 
     res.json({ message: 'Match result updated' });
@@ -1157,7 +1163,7 @@ async function computeStandings(seasonId, res) {
 
     // Step 3: Get all completed matches for these rounds in one query
     const matchesResult = await pool.query(`
-      SELECT player1_id, player2_id, winner_id
+      SELECT player1_id, player2_id, winner_id, p1_damage, p2_damage, p1_kos, p2_kos
       FROM matches
       WHERE round_id = ANY($1) AND status = 'completed'
     `, [roundIds]);
@@ -1165,7 +1171,7 @@ async function computeStandings(seasonId, res) {
     // Step 4: Compute stats in JavaScript
     const statsMap = {};
     for (const p of playersResult.rows) {
-      statsMap[p.id] = { wins: 0, losses: 0, matches_played: 0 };
+      statsMap[p.id] = { wins: 0, losses: 0, matches_played: 0, total_kos: 0, total_damage: 0 };
     }
 
     for (const m of matchesResult.rows) {
@@ -1175,29 +1181,33 @@ async function computeStandings(seasonId, res) {
         statsMap[p1].matches_played++;
         if (m.winner_id === p1) statsMap[p1].wins++;
         else if (m.winner_id !== null) statsMap[p1].losses++;
+        statsMap[p1].total_kos += m.p1_kos || 0;
+        statsMap[p1].total_damage += m.p1_damage || 0;
       }
       if (statsMap[p2]) {
         statsMap[p2].matches_played++;
         if (m.winner_id === p2) statsMap[p2].wins++;
         else if (m.winner_id !== null) statsMap[p2].losses++;
+        statsMap[p2].total_kos += m.p2_kos || 0;
+        statsMap[p2].total_damage += m.p2_damage || 0;
       }
     }
 
     // Step 5: Build result rows
     const rows = playersResult.rows.map(p => {
-      const s = statsMap[p.id] || { wins: 0, losses: 0, matches_played: 0 };
+      const s = statsMap[p.id] || { wins: 0, losses: 0, matches_played: 0, total_kos: 0, total_damage: 0 };
       const points = s.wins;
       const diff = s.wins - s.losses;
       const winrate = s.matches_played > 0 ? Math.round((s.wins / s.matches_played) * 10000) / 100 : 0;
       return {
         id: p.id, brawlhalla_name: p.brawlhalla_name, tier: p.tier, username: p.username,
         points, wins: s.wins, losses: s.losses, matches_played: s.matches_played,
-        difference: diff, winrate,
+        difference: diff, winrate, total_kos: s.total_kos, total_damage: s.total_damage,
         initial_position: p.initial_position || 0
       };
     });
 
-    rows.sort((a, b) => b.points - a.points || b.difference - a.difference || b.wins - a.wins || a.initial_position - b.initial_position);
+    rows.sort((a, b) => b.points - a.points || b.difference - a.difference || b.wins - a.wins || b.total_kos - a.total_kos || a.total_damage - b.total_damage || a.initial_position - b.initial_position);
     res.json(rows);
   } catch (e) {
     console.error(e);
@@ -1224,7 +1234,7 @@ app.get('/api/standings', async (req, res) => {
         return;
       }
       const qualifiers = await pool.query(`
-        SELECT q.position, p.id, p.brawlhalla_name, p.tier, u.username, 0 AS points, 0 AS wins, 0 AS losses, 0 AS matches_played, 0 AS difference, 0.00 AS winrate
+        SELECT q.position, p.id, p.brawlhalla_name, p.tier, u.username, 0 AS points, 0 AS wins, 0 AS losses, 0 AS matches_played, 0 AS difference, 0.00 AS winrate, 0 AS total_kos, 0 AS total_damage
         FROM tournament_qualifiers q
         JOIN players p ON p.id = q.player_id
         JOIN users u ON u.id = p.user_id
@@ -1234,7 +1244,7 @@ app.get('/api/standings', async (req, res) => {
         return res.json(qualifiers.rows);
       }
       const allPlayers = await pool.query(`
-        SELECT p.id, p.brawlhalla_name, p.tier, u.username, 0 AS points, 0 AS wins, 0 AS losses, 0 AS matches_played, 0 AS difference, 0.00 AS winrate
+        SELECT p.id, p.brawlhalla_name, p.tier, u.username, 0 AS points, 0 AS wins, 0 AS losses, 0 AS matches_played, 0 AS difference, 0.00 AS winrate, 0 AS total_kos, 0 AS total_damage
         FROM players p JOIN users u ON u.id = p.user_id WHERE p.status = 'approved' AND p.brawlhalla_id IS NOT NULL ORDER BY p.created_at ASC
       `);
       return res.json(allPlayers.rows);

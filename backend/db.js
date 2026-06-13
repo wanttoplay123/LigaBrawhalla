@@ -139,6 +139,10 @@ async function initDB() {
       DELETE FROM matches WHERE status = 'cancelled';
 
       ALTER TABLE matches ADD COLUMN IF NOT EXISTS match_code TEXT;
+      ALTER TABLE matches ADD COLUMN IF NOT EXISTS p1_damage INTEGER DEFAULT 0;
+      ALTER TABLE matches ADD COLUMN IF NOT EXISTS p2_damage INTEGER DEFAULT 0;
+      ALTER TABLE matches ADD COLUMN IF NOT EXISTS p1_kos INTEGER DEFAULT 0;
+      ALTER TABLE matches ADD COLUMN IF NOT EXISTS p2_kos INTEGER DEFAULT 0;
 
       -- Allow groups D and E for new 5-group format
       ALTER TABLE tournament_players DROP CONSTRAINT IF EXISTS tournament_players_group_name_check;
