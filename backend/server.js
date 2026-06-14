@@ -1196,7 +1196,7 @@ async function computeStandings(seasonId, res) {
     // Step 5: Build result rows
     const rows = playersResult.rows.map(p => {
       const s = statsMap[p.id] || { wins: 0, losses: 0, matches_played: 0, total_kos: 0, total_damage: 0 };
-      const points = s.wins;
+      const points = s.wins * 3;
       const diff = s.wins - s.losses;
       const winrate = s.matches_played > 0 ? Math.round((s.wins / s.matches_played) * 10000) / 100 : 0;
       return {
