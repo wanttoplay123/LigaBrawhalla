@@ -6,6 +6,7 @@ const jwt = require('jsonwebtoken');
 const { pool, initDB } = require('./db');
 const brawlhalla = require('./brawlhalla');
 const { generateFixture } = require('./fixture');
+const { parseReplay, extractMatchData, HEROES } = require('./replay_parser');
 
 const app = express();
 app.use(cors());
@@ -2320,6 +2321,233 @@ app.get('/api/tournament-messages', authMiddleware, async (req, res) => {
     res.json(result.rows);
   } catch (e) {
     console.error(e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ─── REPLAY PARSING ───
+
+const crypto = require('crypto');
+const fs = require('fs');
+const multer = require('multer');
+
+const replayUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => {
+      const dir = path.join(__dirname, 'uploads');
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      cb(null, dir);
+    },
+    filename: (req, file, cb) => {
+      const ext = path.extname(file.originalname) || '.replay';
+      cb(null, crypto.randomBytes(8).toString('hex') + ext);
+    }
+  }),
+  fileFilter: (req, file, cb) => {
+    if (file.originalname.endsWith('.replay') || file.mimetype === 'application/octet-stream')
+      cb(null, true);
+    else
+      cb(new Error('Only .replay files are allowed'));
+  },
+  limits: { fileSize: 10 * 1024 * 1024 }
+});
+
+app.post('/api/replay/parse', authMiddleware, adminMiddleware, (req, res) => {
+  replayUpload.single('replay')(req, res, async (err) => {
+    if (err) return res.status(400).json({ error: err.message || 'Upload failed' });
+    if (!req.file) return res.status(400).json({ error: 'No replay file provided' });
+
+    try {
+      const data = extractMatchData(req.file.path);
+      fs.unlink(req.file.path, () => {});
+      res.json(data);
+    } catch (e) {
+      fs.unlink(req.file.path, () => {});
+      res.status(400).json({ error: 'Failed to parse replay: ' + (e.message || e) });
+    }
+  });
+});
+
+app.post('/api/replay/parse-path', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { filePath } = req.body;
+    if (!filePath) return res.status(400).json({ error: 'filePath required' });
+    if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'File not found' });
+
+    const data = extractMatchData(filePath);
+    res.json(data);
+  } catch (e) {
+    res.status(400).json({ error: 'Failed to parse replay: ' + (e.message || e) });
+  }
+});
+
+// ─── BRAWLHALLA NAME SEARCH ───
+
+app.get('/api/brawlhalla/search', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const name = req.query.name;
+    if (!name || name.length < 2) return res.json([]);
+    const results = await brawlhalla.searchPlayerByName(name);
+    const unique = {};
+    for (const r of results) {
+      if (r.brawlhalla_id && !unique[r.brawlhalla_id]) {
+        unique[r.brawlhalla_id] = { brawlhalla_id: r.brawlhalla_id, name: r.name, rating: r.rating, tier: r.tier };
+      }
+    }
+    res.json(Object.values(unique).slice(0, 10));
+  } catch (e) {
+    res.json([]);
+  }
+});
+
+// ─── REPLAY AUTO-RESULT ───
+
+app.post('/api/matches/:id/auto-result', authMiddleware, adminMiddleware, (req, res) => {
+  replayUpload.single('replay')(req, res, async (err) => {
+    if (err) return res.status(400).json({ error: err.message || 'Upload failed' });
+    if (!req.file) return res.status(400).json({ error: 'No replay file provided' });
+
+    try {
+      const matchResult = await pool.query(
+        `SELECT m.id, m.player1_id, m.player2_id,
+                p1.brawlhalla_name AS p1_name, p1.brawlhalla_id AS p1_bhid,
+                p2.brawlhalla_name AS p2_name, p2.brawlhalla_id AS p2_bhid
+         FROM matches m
+         JOIN players p1 ON p1.id = m.player1_id
+         JOIN players p2 ON p2.id = m.player2_id
+         WHERE m.id = $1`, [req.params.id]
+      );
+      if (matchResult.rows.length === 0) {
+        fs.unlink(req.file.path, () => {});
+        return res.status(404).json({ error: 'Match not found' });
+      }
+
+      const match = matchResult.rows[0];
+      const replay = parseReplay(req.file.path);
+      const data = extractMatchData(req.file.path);
+      fs.unlink(req.file.path, () => {});
+
+      const syncName = async (playerId, brawlhallaId) => {
+        if (!brawlhallaId) return null;
+        try {
+          const info = await brawlhalla.verifyPlayerExists(brawlhallaId);
+          if (info && info.name) {
+            const old = await pool.query('SELECT brawlhalla_name FROM players WHERE id = $1', [playerId]);
+            const oldName = old.rows[0]?.brawlhalla_name || '';
+            if (oldName !== info.name) {
+              await pool.query('UPDATE players SET brawlhalla_name = $1 WHERE id = $2', [info.name, playerId]);
+              return { old: oldName, new: info.name };
+            }
+          }
+        } catch (e) {}
+        return null;
+      };
+
+      const sync1 = await syncName(match.player1_id, match.p1_bhid);
+      const sync2 = await syncName(match.player2_id, match.p2_bhid);
+
+      const p1Name = (sync1?.new || match.p1_name || '').toLowerCase().trim();
+      const p2Name = (sync2?.new || match.p2_name || '').toLowerCase().trim();
+
+      const detection = {
+        player1: { dbName: sync1?.new || match.p1_name || '', replayName: null, matched: false, synced: !!sync1, oldName: sync1?.old },
+        player2: { dbName: sync2?.new || match.p2_name || '', replayName: null, matched: false, synced: !!sync2, oldName: sync2?.old },
+      };
+
+      let replayP1 = null, replayP2 = null;
+      for (const e of replay.entities) {
+        const en = e.name.toLowerCase().trim();
+        if (!replayP1 && (en.includes(p1Name) || p1Name.includes(en))) { replayP1 = e; detection.player1.matched = true; detection.player1.replayName = e.name; }
+        if (!replayP2 && (en.includes(p2Name) || p2Name.includes(en))) { replayP2 = e; detection.player2.matched = true; detection.player2.replayName = e.name; }
+      }
+
+      if (!replayP1 && !replayP2) {
+        replayP1 = replay.entities[0]; detection.player1.replayName = replayP1?.name;
+        replayP2 = replay.entities[1]; detection.player2.replayName = replayP2?.name;
+      } else if (!replayP1) {
+        replayP1 = replay.entities.find(e => e.id !== replayP2?.id);
+        detection.player1.replayName = replayP1?.name;
+      } else if (!replayP2) {
+        replayP2 = replay.entities.find(e => e.id !== replayP1?.id);
+        detection.player2.replayName = replayP2?.name;
+      }
+
+      const scores = data.perEntityScores || {};
+      const score1 = scores[replayP1?.id] ?? 99;
+      const score2 = scores[replayP2?.id] ?? 99;
+      const winnerEntity = score1 < score2 ? replayP1 : replayP2;
+      const winnerId = winnerEntity?.id === replayP1?.id ? match.player1_id : match.player2_id;
+
+      const deaths = data.perEntityDeaths || {};
+      const p1Kos = deaths[replayP2?.id] || 0;
+      const p2Kos = deaths[replayP1?.id] || 0;
+
+      const getLegend = (entity) => {
+        if (!entity || !entity.data?.heroTypes?.length) return '';
+        const h = entity.data.heroTypes[0];
+        return HEROES[h.heroId] || `Hero_${h.heroId}`;
+      };
+
+      const legend1 = getLegend(replayP1);
+      const legend2 = getLegend(replayP2);
+
+      res.json({
+        matchId: parseInt(req.params.id),
+        detection,
+        suggestion: {
+          winner_id: winnerId,
+          legend1,
+          legend2,
+          p1_kos: p1Kos,
+          p2_kos: p2Kos,
+          score: `${Math.max(p1Kos, p2Kos)}-${Math.min(p1Kos, p2Kos)}`,
+        }
+      });
+    } catch (e) {
+      if (req.file) fs.unlink(req.file.path, () => {});
+      console.error(e);
+      res.status(400).json({ error: 'Failed to parse replay: ' + (e.message || e) });
+    }
+  });
+});
+
+// ─── SYNC PLAYER NAMES ───
+
+app.post('/api/admin/players/sync-names', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT id, brawlhalla_id, brawlhalla_name FROM players WHERE brawlhalla_id IS NOT NULL');
+    let synced = 0;
+    for (const p of rows) {
+      try {
+        const info = await brawlhalla.verifyPlayerExists(p.brawlhalla_id);
+        if (info && info.name && info.name !== p.brawlhalla_name) {
+          await pool.query('UPDATE players SET brawlhalla_name = $1 WHERE id = $2', [info.name, p.id]);
+          synced++;
+        }
+      } catch (e) {}
+    }
+    res.json({ message: `${synced} nombres actualizados de ${rows.length} jugadores` });
+  } catch (e) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.post('/api/admin/players/:id/sync-name', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT id, brawlhalla_id, brawlhalla_name FROM players WHERE id = $1', [req.params.id]);
+    if (rows.length === 0) return res.status(404).json({ error: 'Player not found' });
+    const p = rows[0];
+    if (!p.brawlhalla_id) return res.json({ message: 'No brawlhalla_id', changed: false });
+    const info = await brawlhalla.verifyPlayerExists(p.brawlhalla_id);
+    if (info && info.name) {
+      if (info.name !== p.brawlhalla_name) {
+        await pool.query('UPDATE players SET brawlhalla_name = $1 WHERE id = $2', [info.name, p.id]);
+        return res.json({ message: `Nombre actualizado: ${p.brawlhalla_name} → ${info.name}`, changed: true, oldName: p.brawlhalla_name, newName: info.name });
+      }
+      return res.json({ message: `Nombre ya está actualizado: ${p.brawlhalla_name}`, changed: false });
+    }
+    res.json({ message: 'No se pudo verificar', changed: false });
+  } catch (e) {
     res.status(500).json({ error: 'Server error' });
   }
 });
