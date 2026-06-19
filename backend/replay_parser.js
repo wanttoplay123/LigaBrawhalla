@@ -13,8 +13,9 @@ const HEROES = {
   37:'Kaya',38:'Isaiah',39:'Jiro',40:'Lin Fei',41:'Zariel',42:'Rayman',
   43:'Dusk',44:'Fait',45:'Thor',46:'Petra',47:'Vector',48:'Volkov',
   49:'Onyx',50:'Jaeyun',51:'Mako',52:'Magyar',53:'Reno',54:'Munin',
-  55:'Arcadia',56:'Ezio',57:'Thea',58:'Red Raptor',59:'Loki',60:'Seven',
-  61:'Vivi',62:'Imugi',63:'Priya',64:'Tezca',
+   55:'Arcadia',56:'Ezio',57:'Tezca',58:'Thea',59:'Red Raptor',60:'Loki',
+   61:'Seven',62:'Vivi',63:'Imugi',64:'King Zuva',65:'Priya',66:'Ransom',
+   67:'Lady Vera',68:'Rupture',69:'Aurus',
 };
 
 class BitReader {
