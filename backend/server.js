@@ -6,7 +6,7 @@ const jwt = require('jsonwebtoken');
 const { pool, initDB } = require('./db');
 const brawlhalla = require('./brawlhalla');
 const { generateFixture } = require('./fixture');
-const { parseReplay, extractMatchData, HEROES } = require('./replay_parser');
+const { parseReplay, extractMatchData } = require('./replay_parser');
 
 const app = express();
 app.use(cors());
@@ -2485,7 +2485,7 @@ app.post('/api/matches/:id/auto-result', authMiddleware, adminMiddleware, (req, 
       const getLegend = (entity) => {
         if (!entity || !entity.data?.heroTypes?.length) return '';
         const h = entity.data.heroTypes[0];
-        return HEROES[h.heroId] || `Hero_${h.heroId}`;
+        return `Hero_${h.heroId}`;
       };
 
       const legend1 = getLegend(replayP1);

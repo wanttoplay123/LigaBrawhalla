@@ -247,7 +247,7 @@ function getPlayerInfo(entities) {
     isBot: e.data.isBot,
     heroes: e.data.heroTypes.map(h => ({
       heroId: h.heroId,
-      name: HEROES[h.heroId] || `Hero_${h.heroId}`,
+      name: `Hero_${h.heroId}`,
     })),
   }));
 }
