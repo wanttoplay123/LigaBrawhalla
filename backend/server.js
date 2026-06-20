@@ -2353,15 +2353,9 @@ const replayUpload = multer({
 });
 
 const jsonUpload = multer({
-  storage: multer.diskStorage({
-    destination: (req, file, cb) => cb(null, path.join(__dirname, 'uploads')),
-    filename: (req, file, cb) => cb(null, crypto.randomBytes(8).toString('hex') + '.json')
-  }),
+  storage: multer.memoryStorage(),
   fileFilter: (req, file, cb) => {
-    if (file.originalname.endsWith('.json') || file.mimetype === 'application/json')
-      cb(null, true);
-    else
-      cb(new Error('Only .json files are allowed'));
+    cb(null, true);
   },
   limits: { fileSize: 5 * 1024 * 1024 }
 });
@@ -2543,13 +2537,11 @@ app.post('/api/matches/:id/auto-result-stats', authMiddleware, adminMiddleware, 
          WHERE m.id = $1`, [req.params.id]
       );
       if (matchResult.rows.length === 0) {
-        fs.unlink(req.file.path, () => {});
         return res.status(404).json({ error: 'Match not found' });
       }
 
       const match = matchResult.rows[0];
-      const stats = JSON.parse(fs.readFileSync(req.file.path, 'utf8'));
-      fs.unlink(req.file.path, () => {});
+      const stats = JSON.parse(req.file.buffer.toString('utf8'));
 
       const players = [];
       for (const key of Object.keys(stats)) {
@@ -2651,7 +2643,6 @@ app.post('/api/matches/:id/auto-result-stats', authMiddleware, adminMiddleware, 
         }
       });
     } catch (e) {
-      if (req.file) fs.unlink(req.file.path, () => {});
       console.error(e);
       res.status(400).json({ error: 'Failed to parse stats: ' + (e.message || e) });
     }
