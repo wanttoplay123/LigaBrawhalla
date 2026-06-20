@@ -1039,6 +1039,8 @@ let accumulatedDamage = { p1: 0, p2: 0 };
 let accumulatedKOs = { p1: 0, p2: 0 };
 
 function triggerStatsUpload(gameNum) {
+  const btn = document.querySelector(`div[data-game="${gameNum}"] .admin-btn`);
+  if (btn?.disabled) return;
   document.getElementById(`gameStatsInput${gameNum}`).click();
 }
 
@@ -1111,6 +1113,13 @@ async function onStatsSelected(gameNum) {
       radio.checked = true;
       radio.dispatchEvent(new Event('change'));
     }
+
+    document.querySelectorAll(`[data-game="${gameNum}"] .admin-btn`).forEach(b => {
+      b.disabled = true;
+      b.style.opacity = '0.4';
+      b.style.cursor = 'not-allowed';
+      b.textContent = '✅';
+    });
   } catch (e) {
     nameSpan.textContent = '✗ Red';
     nameSpan.style.color = '#ef4444';
