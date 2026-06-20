@@ -2325,7 +2325,7 @@ app.get('/api/tournament-messages', authMiddleware, async (req, res) => {
   }
 });
 
-// ─── REPLAY PARSING ───
+// ─── FILE UPLOAD ───
 
 const crypto = require('crypto');
 const fs = require('fs');
@@ -2350,6 +2350,20 @@ const replayUpload = multer({
       cb(new Error('Only .replay files are allowed'));
   },
   limits: { fileSize: 10 * 1024 * 1024 }
+});
+
+const jsonUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, path.join(__dirname, 'uploads')),
+    filename: (req, file, cb) => cb(null, crypto.randomBytes(8).toString('hex') + '.json')
+  }),
+  fileFilter: (req, file, cb) => {
+    if (file.originalname.endsWith('.json') || file.mimetype === 'application/json')
+      cb(null, true);
+    else
+      cb(new Error('Only .json files are allowed'));
+  },
+  limits: { fileSize: 5 * 1024 * 1024 }
 });
 
 app.post('/api/replay/parse', authMiddleware, adminMiddleware, (req, res) => {
@@ -2507,6 +2521,139 @@ app.post('/api/matches/:id/auto-result', authMiddleware, adminMiddleware, (req, 
       if (req.file) fs.unlink(req.file.path, () => {});
       console.error(e);
       res.status(400).json({ error: 'Failed to parse replay: ' + (e.message || e) });
+    }
+  });
+});
+
+// ─── WRITESTATS AUTO-RESULT ───
+
+app.post('/api/matches/:id/auto-result-stats', authMiddleware, adminMiddleware, (req, res) => {
+  jsonUpload.single('stats')(req, res, async (err) => {
+    if (err) return res.status(400).json({ error: err.message || 'Upload failed' });
+    if (!req.file) return res.status(400).json({ error: 'No stats file provided' });
+
+    try {
+      const matchResult = await pool.query(
+        `SELECT m.id, m.player1_id, m.player2_id,
+                p1.brawlhalla_name AS p1_name, p1.brawlhalla_id AS p1_bhid,
+                p2.brawlhalla_name AS p2_name, p2.brawlhalla_id AS p2_bhid
+         FROM matches m
+         JOIN players p1 ON p1.id = m.player1_id
+         JOIN players p2 ON p2.id = m.player2_id
+         WHERE m.id = $1`, [req.params.id]
+      );
+      if (matchResult.rows.length === 0) {
+        fs.unlink(req.file.path, () => {});
+        return res.status(404).json({ error: 'Match not found' });
+      }
+
+      const match = matchResult.rows[0];
+      const stats = JSON.parse(fs.readFileSync(req.file.path, 'utf8'));
+      fs.unlink(req.file.path, () => {});
+
+      const players = [];
+      for (const key of Object.keys(stats)) {
+        if (key.startsWith('Player') && stats[key]?.PlayerName) {
+          players.push(stats[key]);
+        }
+      }
+
+      if (players.length < 2) {
+        return res.status(400).json({ error: 'Stats file must contain at least 2 players (Player0, Player1)' });
+      }
+
+      const syncName = async (playerId, brawlhallaId) => {
+        if (!brawlhallaId) return null;
+        try {
+          const info = await brawlhalla.verifyPlayerExists(brawlhallaId);
+          if (info && info.name) {
+            const old = await pool.query('SELECT brawlhalla_name FROM players WHERE id = $1', [playerId]);
+            const oldName = old.rows[0]?.brawlhalla_name || '';
+            if (oldName !== info.name) {
+              await pool.query('UPDATE players SET brawlhalla_name = $1 WHERE id = $2', [info.name, playerId]);
+              return { old: oldName, new: info.name };
+            }
+          }
+        } catch (e) {}
+        return null;
+      };
+
+      const sync1 = await syncName(match.player1_id, match.p1_bhid);
+      const sync2 = await syncName(match.player2_id, match.p2_bhid);
+
+      const p1Name = (sync1?.new || match.p1_name || '').toLowerCase().trim();
+      const p2Name = (sync2?.new || match.p2_name || '').toLowerCase().trim();
+
+      const detection = {
+        player1: { dbName: sync1?.new || match.p1_name || '', statsName: null, matched: false, synced: !!sync1, oldName: sync1?.old },
+        player2: { dbName: sync2?.new || match.p2_name || '', statsName: null, matched: false, synced: !!sync2, oldName: sync2?.old },
+      };
+
+      let statsP1 = null, statsP2 = null;
+
+      // 1) Match by brawlhalla_id (most reliable)
+      for (const p of players) {
+        const pid = p.BrawlhallaID;
+        if (!statsP1 && match.p1_bhid && pid === match.p1_bhid) {
+          statsP1 = p; detection.player1.matched = true; detection.player1.statsName = p.PlayerName;
+        }
+        if (!statsP2 && match.p2_bhid && pid === match.p2_bhid) {
+          statsP2 = p; detection.player2.matched = true; detection.player2.statsName = p.PlayerName;
+        }
+      }
+
+      // 2) Fall back to name matching for unmatched players
+      for (const p of players) {
+        if (statsP1 && statsP2) break;
+        const pn = p.PlayerName.toLowerCase().trim();
+        if (!statsP1 && (pn.includes(p1Name) || p1Name.includes(pn))) {
+          statsP1 = p; detection.player1.matched = true; detection.player1.statsName = p.PlayerName;
+        }
+        if (!statsP2 && (pn.includes(p2Name) || p2Name.includes(pn))) {
+          statsP2 = p; detection.player2.matched = true; detection.player2.statsName = p.PlayerName;
+        }
+      }
+
+      // 3) If still unmatched, assign by position
+      if (!statsP1 && !statsP2) {
+        statsP1 = players[0]; detection.player1.statsName = players[0]?.PlayerName;
+        statsP2 = players[1]; detection.player2.statsName = players[1]?.PlayerName;
+      } else if (!statsP1) {
+        statsP1 = players.find(p => p !== statsP2);
+        detection.player1.statsName = statsP1?.PlayerName;
+      } else if (!statsP2) {
+        statsP2 = players.find(p => p !== statsP1);
+        detection.player2.statsName = statsP2?.PlayerName;
+      }
+
+      const winnerEntity = (statsP1?.Deaths ?? 99) < (statsP2?.Deaths ?? 99) ? statsP1 : statsP2;
+      const winnerId = winnerEntity === statsP1 ? match.player1_id : match.player2_id;
+
+      const p1Kos = statsP1?.KOs ?? 0;
+      const p2Kos = statsP2?.KOs ?? 0;
+      const p1Damage = Math.round(statsP1?.DamageDealt ?? 0);
+      const p2Damage = Math.round(statsP2?.DamageDealt ?? 0);
+      const legend1 = statsP1?.Loadout?.LegendName ? statsP1.Loadout.LegendName.toUpperCase() : '';
+      const legend2 = statsP2?.Loadout?.LegendName ? statsP2.Loadout.LegendName.toUpperCase() : '';
+
+      res.json({
+        matchId: parseInt(req.params.id),
+        detection,
+        suggestion: {
+          winner_id: winnerId,
+          legend1,
+          legend2,
+          p1_kos: p1Kos,
+          p2_kos: p2Kos,
+          p1_damage: p1Damage,
+          p2_damage: p2Damage,
+          score: `${Math.max(p1Kos, p2Kos)}-${Math.min(p1Kos, p2Kos)}`,
+        }
+      });
+    } catch (e) {
+      if (req.file) fs.unlink(req.file.path, () => {});
+      console.error(e);
+      res.status(400).json({ error: 'Failed to parse stats: ' + (e.message || e) });
     }
   });
 });
