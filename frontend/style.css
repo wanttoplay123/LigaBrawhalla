@@ -158,7 +158,7 @@ nav::before {
 
 /* ─── PAGE SECTION ─── */
 .page-section {
-  padding: var(--nav-height) 5vw 60px;
+  padding: calc(var(--nav-height) + 24px) 5vw 60px;
   background: var(--dark2);
   min-height: 100vh;
   position: relative;
@@ -207,7 +207,7 @@ nav::before {
 /* ─── AUTH ─── */
 .auth-section {
   display: flex; align-items: center; justify-content: center;
-  min-height: 100vh; padding: var(--nav-height) 5vw 60px;
+  min-height: 100vh; padding: calc(var(--nav-height) + 24px) 5vw 60px;
   background: var(--dark2);
 }
 .auth-card {
@@ -390,7 +390,7 @@ nav::before {
 }
 
 @media (max-width: 480px) {
-  .page-section { padding: var(--nav-height) 4vw 40px; }
+  .page-section { padding: calc(var(--nav-height) + 24px) 4vw 40px; }
   .standings-header { display: none; }
   .standings-row {
     display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px;
@@ -662,7 +662,7 @@ nav::after {
 }
 
 .page-section {
-  padding-top: var(--nav-height);
+  padding-top: calc(var(--nav-height) + 24px);
 }
 
 .page-section::before,
