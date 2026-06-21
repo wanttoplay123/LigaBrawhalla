@@ -922,7 +922,7 @@ select:focus,
 .clickable-match-row:hover,
 .rank-row:hover {
   transform: translateX(4px);
-  background: linear-gradient(90deg, rgba(0,216,255,0.08), rgba(155,92,255,0.14)) !important;
+  background: linear-gradient(90deg, rgba(0,216,255,0.075), rgba(155,92,255,0.045), transparent) !important;
 }
 
 .match-list-row {
@@ -931,7 +931,7 @@ select:focus,
 
 .match-list-row:hover {
   border-left-color: var(--aaa-cyan);
-  box-shadow: inset 22px 0 32px rgba(0,216,255,0.06), inset -30px 0 44px rgba(155,92,255,0.14);
+  box-shadow: inset 22px 0 32px rgba(0,216,255,0.06), inset -30px 0 44px rgba(155,92,255,0.10);
 }
 
 .admin-table tr:hover td,
