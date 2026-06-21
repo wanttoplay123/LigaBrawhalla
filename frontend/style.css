@@ -503,33 +503,8 @@ html {
 }
 
 body {
-  background:
-    radial-gradient(circle at 0% 12%, rgba(0, 216, 255, 0.12), transparent 34vw),
-    radial-gradient(circle at 100% 10%, rgba(255, 214, 107, 0.10), transparent 32vw),
-    radial-gradient(circle at 50% 50%, rgba(155, 92, 255, 0.08), transparent 40vw),
-    linear-gradient(180deg, #0a0c1e 0%, #0e1028 46%, #080a18 100%);
+  background: var(--aaa-bg);
   color: var(--aaa-text);
-}
-
-body::before,
-body::after {
-  content: "";
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-}
-
-body::before {
-  background:
-    linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
-  background-size: 56px 56px;
-  mask-image: linear-gradient(to bottom, rgba(0,0,0,0.74), transparent 82%);
-}
-
-body::after {
-  display: none;
 }
 
 body > *:not(nav):not(.mobile-menu):not(#particles-canvas):not(.notification):not(.scroll-progress) {
