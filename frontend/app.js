@@ -48,14 +48,33 @@ function initParticles() {
 }
 
 // ── GLOBAL ANIMATION ORCHESTRATOR ──
+function initScrollProgress() {
+  if (document.querySelector('.scroll-progress')) return;
+  const bar = document.createElement('div');
+  bar.className = 'scroll-progress';
+  document.body.appendChild(bar);
+
+  const update = () => {
+    const max = document.documentElement.scrollHeight - window.innerHeight;
+    const pct = max > 0 ? (window.scrollY / max) * 100 : 0;
+    bar.style.width = `${Math.min(100, Math.max(0, pct))}%`;
+  };
+
+  update();
+  window.addEventListener('scroll', update, { passive: true });
+  window.addEventListener('resize', update);
+}
+
 function initGlobalAnimations() {
   // Apply reveal class to generic containers if they don't have it
   if (window.location.pathname.indexOf('index.html') === -1) {
-    document.querySelectorAll('.page-section > div, .standings-table, .match-card, .player-profile, .auth-card, .section-header').forEach((el, index) => {
+    document.querySelectorAll('.page-section > div, .standings-table, .match-card, .player-profile, .auth-card, .section-header, .admin-card, .tournament-card, .group-card, .t-match-card, .player-card-sm, .hof-card, .hof-stat').forEach((el, index) => {
       if (!el.classList.contains('reveal')) {
         el.classList.add('reveal');
-        if (index % 3 === 1) el.classList.add('reveal-delay-1');
-        if (index % 3 === 2) el.classList.add('reveal-delay-2');
+        el.style.setProperty('--reveal-index', index % 8);
+        if (index % 4 === 1) el.classList.add('reveal-delay-1');
+        if (index % 4 === 2) el.classList.add('reveal-delay-2');
+        if (index % 4 === 3) el.classList.add('reveal-delay-3');
       }
     });
   }
@@ -69,6 +88,7 @@ function initGlobalAnimations() {
 
 document.addEventListener('DOMContentLoaded', () => {
   initParticles();
+  initScrollProgress();
   initGlobalAnimations();
 });
 
@@ -221,3 +241,173 @@ function toggleMenu() {
   ham.children[2].style.transform = open ? 'rotate(-45deg) translate(5px,-5px)' : '';
   document.body.style.overflow = open ? 'hidden' : '';
 }
+
+/* ══════════════════════════════════════════════════════════════════
+   SPA ROUTER — AJAX page transitions with History API
+   ══════════════════════════════════════════════════════════════════ */
+(function () {
+  if (window.__spaInit) return;
+  window.__spaInit = true;
+
+  /* ── Interval / Timeout tracking for per-page cleanup ── */
+  var _origSetInterval = window.setInterval;
+  var _origClearInterval = window.clearInterval;
+  var _pageIntervals = [];
+
+  window.setInterval = function () {
+    var id = _origSetInterval.apply(window, arguments);
+    _pageIntervals.push(id);
+    return id;
+  };
+  window.clearInterval = function (id) {
+    _pageIntervals = _pageIntervals.filter(function (i) { return i !== id; });
+    return _origClearInterval.call(window, id);
+  };
+
+  function clearAllPageIntervals() {
+    _pageIntervals.forEach(function (id) { _origClearInterval.call(window, id); });
+    _pageIntervals = [];
+  }
+
+  /* ── Helpers ── */
+  function isLocalLink(el) {
+    if (!el || el.tagName !== 'A') return false;
+    if (el.target === '_blank' || el.hasAttribute('download')) return false;
+    var href = el.getAttribute('href');
+    if (!href || href === '#' || href.startsWith('#') || href.startsWith('javascript:') || href.startsWith('mailto:')) return false;
+    if (el.classList.contains('nav-auth-logout')) return false;
+    try {
+      var url = new URL(href, location.origin);
+      if (url.origin !== location.origin) return false;
+      var p = url.pathname;
+      return p.endsWith('.html') || p === '/' || p.endsWith('/');
+    } catch (e) { return false; }
+  }
+
+  function fileFromPath(path) {
+    return path.split('/').pop() || 'index.html';
+  }
+
+  function syncActiveLinks(fileName) {
+    document.querySelectorAll('.nav-links a, #mobileMenu a').forEach(function (a) {
+      var lh = a.getAttribute('href');
+      if (!lh) return;
+      var match = (lh === fileName) || (fileName === 'index.html' && (lh === '/' || lh === './'));
+      if (match) a.classList.add('active');
+      else a.classList.remove('active');
+    });
+  }
+
+  function closeMobileMenu() {
+    var menu = document.getElementById('mobileMenu');
+    var ham = document.getElementById('hamburger');
+    if (menu && menu.classList.contains('open')) {
+      menu.classList.remove('open');
+      if (ham) {
+        ham.children[0].style.transform = '';
+        ham.children[1].style.opacity = '';
+        ham.children[2].style.transform = '';
+      }
+      document.body.style.overflow = '';
+    }
+  }
+
+  /* ── Core navigation ── */
+  function navigateTo(url, pushState) {
+    if (typeof pushState === 'undefined') pushState = true;
+    var container = document.getElementById('app-content');
+    if (!container) { window.location.href = url; return; }
+
+    // Fade out
+    container.classList.add('fade-out');
+
+    setTimeout(function () {
+      fetch(url).then(function (res) {
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        return res.text();
+      }).then(function (html) {
+        var parser = new DOMParser();
+        var doc = parser.parseFromString(html, 'text/html');
+        var newContent = doc.getElementById('app-content');
+        if (!newContent) { window.location.href = url; return; }
+
+        // 1 — Clear page intervals
+        clearAllPageIntervals();
+
+        // 2 — Update page title
+        var title = doc.querySelector('title');
+        if (title) document.title = title.textContent;
+
+        // 3 — Swap page-specific styles
+        document.querySelectorAll('style[data-page-style]').forEach(function (el) { el.remove(); });
+        doc.head.querySelectorAll('style[data-page-style]').forEach(function (el) {
+          var s = document.createElement('style');
+          s.setAttribute('data-page-style', '');
+          s.textContent = el.textContent;
+          document.head.appendChild(s);
+        });
+
+        // 4 — Swap content
+        container.innerHTML = newContent.innerHTML;
+
+        // 5 — Push history
+        if (pushState) history.pushState({ spaUrl: url }, '', url);
+
+        // 6 — Sync navigation
+        var pageName = fileFromPath(new URL(url, location.origin).pathname);
+        syncActiveLinks(pageName);
+        closeMobileMenu();
+        if (typeof updateNav === 'function') updateNav();
+
+        // 7 — Scroll to top
+        window.scrollTo({ top: 0, behavior: 'instant' });
+
+        // 8 — Execute page-specific inline scripts
+        var scripts = doc.querySelectorAll('script');
+        scripts.forEach(function (orig) {
+          if (orig.src) return;                 // skip external scripts (app.js, etc.)
+          if (orig.closest && orig.closest('head')) return;
+          var code = (orig.textContent || '').trim();
+          if (!code) return;
+          // Replace let/const with var to prevent redeclaration errors on re-visit
+          code = code.replace(/\blet\s+/g, 'var ').replace(/\bconst\s+/g, 'var ');
+          var el = document.createElement('script');
+          el.textContent = code;
+          document.body.appendChild(el);
+          el.remove(); // DOM element removed, but code already executed
+        });
+
+        // 9 — Re-initialise reveal animations
+        if (typeof initGlobalAnimations === 'function') initGlobalAnimations();
+
+        // 10 — Fade in
+        container.classList.remove('fade-out');
+
+      }).catch(function (err) {
+        console.error('[SPA] navigation error:', err);
+        window.location.href = url;      // fallback to full reload
+      });
+    }, 230); // matches the CSS transition duration
+  }
+
+  /* ── Click delegation ── */
+  document.addEventListener('click', function (e) {
+    var a = e.target.closest ? e.target.closest('a') : null;
+    if (!a) return;
+    if (!isLocalLink(a)) return;
+    e.preventDefault();
+    if (a.href === location.href) return; // same page, do nothing
+    navigateTo(a.href);
+  });
+
+  /* ── Browser back / forward ── */
+  window.addEventListener('popstate', function () {
+    navigateTo(location.href, false);
+  });
+
+  /* ── Seed initial state ── */
+  history.replaceState({ spaUrl: location.href }, '', location.href);
+
+  /* ── Expose for programmatic navigation ── */
+  window.spaNavigateTo = navigateTo;
+})();

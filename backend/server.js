@@ -641,6 +641,52 @@ app.post('/api/seasons/:id/end', authMiddleware, adminMiddleware, async (req, re
   }
 });
 
+app.put('/api/seasons/:id/activate', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const result = await pool.query("SELECT id, status FROM seasons WHERE id = $1", [req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Season not found' });
+    const season = result.rows[0];
+    if (season.status === 'active') return res.status(400).json({ error: 'Season is already active' });
+
+    await pool.query("UPDATE seasons SET status = 'active', ended_at = NULL WHERE id = $1", [req.params.id]);
+
+    // Find the most advanced round that had pending matches and set it active
+    // This allows the season to continue from where it left off
+    await pool.query(`
+      WITH last_round AS (
+        SELECT id, round_number FROM rounds
+        WHERE season_id = $1 AND status = 'completed'
+        AND (
+          SELECT COUNT(*) FROM matches WHERE round_id = rounds.id AND status = 'pending'
+        ) > 0
+        ORDER BY round_number DESC LIMIT 1
+      )
+      UPDATE rounds SET status = 'active' WHERE id = (SELECT id FROM last_round)
+    `, [req.params.id]);
+
+    // If no round with pending matches was found, set all completed rounds back to pending
+    // so admin can manage them (rare edge case)
+    const activeCount = await pool.query(
+      "SELECT COUNT(*) FROM rounds WHERE season_id = $1 AND status = 'active'",
+      [req.params.id]
+    );
+    if (parseInt(activeCount.rows[0].count) === 0) {
+      await pool.query(`
+        UPDATE rounds SET status = 'pending'
+        WHERE season_id = $1 AND status = 'completed'
+      `, [req.params.id]);
+      await pool.query(`
+        UPDATE rounds SET status = 'active'
+        WHERE season_id = $1 AND round_number = 1
+      `, [req.params.id]);
+    }
+
+    res.json({ message: 'Season reactivated' });
+  } catch (e) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // ─── MATCHES ───
 
 app.get('/api/matches', async (req, res) => {
