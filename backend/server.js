@@ -860,13 +860,8 @@ app.patch('/api/matches/:id/result', authMiddleware, adminMiddleware, async (req
           ) AND status = 'pending' ORDER BY round_number ASC LIMIT 1
         )
       `, [match.round_id]);
-    } else {
-      const now2 = new Date().toISOString();
-      await pool.query(`
-        UPDATE seasons SET status = 'completed', ended_at = $1
-        WHERE id = (SELECT season_id FROM rounds WHERE id = $2)
-      `, [now2, match.round_id]);
     }
+    // No auto-end: season stays active until admin manually ends it
 
     res.json({ message: 'Match result recorded' });
   } catch (e) {
